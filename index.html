@@ -1,1 +1,585 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>台股資產追蹤</title>
+<link rel="preconnect" href="https://fonts.googleapis.com" />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
+<script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<style>
+  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+  :root {
+    --bg: #0e1117; --surface: #161b27; --surface2: #1e2535;
+    --border: #2a3248; --text: #e8eaf0; --muted: #7a8299;
+    --accent: #4f8ef7; --green: #34d399; --red: #f87171;
+    --radius: 12px;
+  }
+  body { background: var(--bg); color: var(--text); font-family: 'Noto Sans TC', sans-serif; min-height: 100vh; }
+  .app { max-width: 1100px; margin: 0 auto; padding: 24px 16px 60px; }
+  .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; flex-wrap: wrap; gap: 12px; }
+  .logo { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.5px; }
+  .logo span { color: var(--accent); }
+  .header-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
+  .summary { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 28px; display: flex; gap: 32px; flex-wrap: wrap; align-items: center; }
+  .sum-item { display: flex; flex-direction: column; gap: 2px; }
+  .sum-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; }
+  .sum-value { font-size: 1.25rem; font-weight: 700; font-family: 'DM Mono', monospace; }
+  .sum-value.pos { color: var(--green); }
+  .sum-value.neg { color: var(--red); }
+  .sum-divider { width: 1px; height: 36px; background: var(--border); }
+  .upload-zone { border: 2px dashed var(--border); border-radius: var(--radius); padding: 28px; text-align: center; cursor: pointer; transition: all 0.2s; margin-bottom: 28px; background: var(--surface); }
+  .upload-zone:hover { border-color: var(--accent); background: rgba(79,142,247,0.05); }
+  .upload-icon { font-size: 2rem; margin-bottom: 8px; }
+  .upload-hint { color: var(--muted); font-size: 0.85rem; margin-top: 4px; }
+  .upload-msg { margin-top: 10px; font-size: 0.88rem; color: var(--accent); }
+  .upload-msg.err { color: var(--red); }
+  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
+  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; transition: transform 0.15s, box-shadow 0.15s; position: relative; overflow: hidden; }
+  .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--border); }
+  .card.up::before { background: var(--green); }
+  .card.down::before { background: var(--red); }
+  .card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
+  .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
+  .symbol { font-size: 1.1rem; font-weight: 700; font-family: 'DM Mono', monospace; color: var(--accent); margin-right: 8px; }
+  .name { font-size: 0.85rem; color: var(--muted); }
+  .del-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.8rem; padding: 2px 6px; border-radius: 4px; transition: all 0.15s; }
+  .del-btn:hover { background: var(--red); color: white; }
+  .price-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 16px; min-height: 32px; }
+  .current-price { font-size: 1.5rem; font-weight: 700; font-family: 'DM Mono', monospace; }
+  .change { font-size: 0.82rem; font-family: 'DM Mono', monospace; }
+  .change.pos { color: var(--green); }
+  .change.neg { color: var(--red); }
+  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+  .stat { background: var(--surface2); border-radius: 8px; padding: 8px 10px; }
+  .stat-label { display: block; font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
+  .stat-value { font-size: 0.9rem; font-weight: 600; font-family: 'DM Mono', monospace; }
+  .stat-value.pos { color: var(--green); }
+  .stat-value.neg { color: var(--red); }
+  .btn-primary { background: var(--accent); color: white; border: none; border-radius: 8px; padding: 8px 16px; cursor: pointer; font-size: 0.88rem; font-weight: 600; transition: opacity 0.15s; font-family: inherit; }
+  .btn-primary:hover { opacity: 0.85; }
+  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
+  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 16px; cursor: pointer; font-size: 0.88rem; font-weight: 500; transition: all 0.15s; font-family: inherit; }
+  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
+  .btn-danger { background: transparent; color: var(--red); border: 1px solid var(--red); border-radius: 8px; padding: 8px 16px; cursor: pointer; font-size: 0.88rem; font-weight: 500; transition: all 0.15s; font-family: inherit; }
+  .btn-danger:hover { background: var(--red); color: white; }
+  .spinner { display: flex; gap: 4px; align-items: center; height: 32px; }
+  .spinner div { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: bounce 0.6s ease-in-out infinite; }
+  .spinner div:nth-child(2) { animation-delay: 0.1s; }
+  .spinner div:nth-child(3) { animation-delay: 0.2s; }
+  @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
+  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
+  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
+  .modal h3 { margin-bottom: 20px; font-size: 1.1rem; }
+  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
+  .form-grid label { display: flex; flex-direction: column; gap: 5px; font-size: 0.82rem; color: var(--muted); }
+  .form-grid input, .form-grid select { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; color: var(--text); font-size: 0.9rem; font-family: inherit; }
+  .form-grid input:focus, .form-grid select:focus { outline: none; border-color: var(--accent); }
+  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
+  .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
+  .empty-icon { font-size: 3rem; margin-bottom: 12px; }
+  .empty p { font-size: 0.9rem; line-height: 1.7; }
+  .error-text { font-size: 0.8rem; color: var(--red); }
+  .config-bar { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 20px; }
+  .config-bar h4 { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; }
+  .config-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
+  .config-row:last-child { margin-bottom: 0; }
+  .config-row label { font-size: 0.82rem; color: var(--muted); white-space: nowrap; min-width: 130px; }
+  .config-row input { flex: 1; min-width: 200px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; color: var(--text); font-size: 0.85rem; font-family: 'DM Mono', monospace; }
+  .config-row input:focus { outline: none; border-color: var(--accent); }
+  .config-hint { font-size: 0.75rem; color: var(--muted); margin-top: 8px; line-height: 1.6; }
+  .config-hint a { color: var(--accent); text-decoration: none; }
+  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
+  .status-dot.ok { background: var(--green); }
+  .status-dot.err { background: var(--red); }
+  .status-dot.idle { background: var(--muted); }
+  .db-status { font-size: 0.8rem; color: var(--muted); }
+  .txn-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-bottom: 16px; }
+  .txn-table th { background: var(--surface2); color: var(--muted); text-align: left; padding: 7px 10px; font-weight: 500; font-size: 0.72rem; text-transform: uppercase; letter-spacing: 0.5px; }
+  .txn-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
+  .txn-table tr:last-child td { border-bottom: none; }
+  .badge-buy { background: rgba(52,211,153,0.15); color: var(--green); border-radius: 4px; padding: 1px 6px; font-size: 0.75rem; }
+  .badge-sell { background: rgba(248,113,113,0.15); color: var(--red); border-radius: 4px; padding: 1px 6px; font-size: 0.75rem; }
+  .section-title { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; }
+  .last-updated { font-size: 0.75rem; color: var(--muted); }
+  @media (max-width: 600px) {
+    .form-grid { grid-template-columns: 1fr; }
+    .summary { gap: 16px; }
+    .sum-divider { display: none; }
+    .header-actions { gap: 6px; }
+    .config-row label { min-width: 100%; }
+  }
+</style>
+</head>
+<body>
+<div id="root"></div>
+<script type="text/babel">
+const { useState, useEffect, useRef, useCallback } = React;
+
+// ── Config (從 config.js 讀取，或由使用者在 UI 輸入) ──────────────
+const STORAGE_KEY = "tw_stock_config";
+
+function loadConfig() {
+  try {
+    const saved = JSON.parse(localStorage.getItem(STORAGE_KEY) || "{}");
+    return {
+      supabaseUrl: saved.supabaseUrl || window.APP_CONFIG?.SUPABASE_URL || "",
+      supabaseKey: saved.supabaseKey || window.APP_CONFIG?.SUPABASE_ANON_KEY || "",
+      anthropicKey: saved.anthropicKey || window.APP_CONFIG?.ANTHROPIC_KEY || "",
+    };
+  } catch { return { supabaseUrl:"", supabaseKey:"", anthropicKey:"" }; }
+}
+function saveConfig(cfg) {
+  try { localStorage.setItem(STORAGE_KEY, JSON.stringify(cfg)); } catch {}
+}
+
+// ── Supabase helpers ──────────────────────────────────────────────
+function createClient(url, key) {
+  if (!url || !key) return null;
+  return window.supabase.createClient(url, key);
+}
+
+async function dbLoadTxns(client) {
+  if (!client) return [];
+  const { data, error } = await client.from("transactions").select("*").order("date", { ascending: true });
+  if (error) throw error;
+  return data || [];
+}
+
+async function dbAddTxns(client, txns) {
+  if (!client) return;
+  const rows = txns.map(t => ({
+    date: t.date, symbol: t.symbol, name: t.name,
+    action: t.action, shares: Number(t.shares), price: Number(t.price),
+    fee: Number(t.fee||0), tax: Number(t.tax||0)
+  }));
+  const { error } = await client.from("transactions").insert(rows);
+  if (error) throw error;
+}
+
+async function dbDeleteTxn(client, id) {
+  if (!client) return;
+  const { error } = await client.from("transactions").delete().eq("id", id);
+  if (error) throw error;
+}
+
+async function dbDeleteBySymbol(client, symbol) {
+  if (!client) return;
+  const { error } = await client.from("transactions").delete().eq("symbol", symbol);
+  if (error) throw error;
+}
+
+// ── Utilities ─────────────────────────────────────────────────────
+const fmt = (n) => n == null ? "—" : n.toLocaleString("zh-TW", { minimumFractionDigits: 0 });
+const pct = (gain, cost) => cost === 0 ? "0.00" : ((gain / cost) * 100).toFixed(2);
+
+function computeHoldings(transactions) {
+  const map = {};
+  const sorted = [...transactions].sort((a,b) => a.date.localeCompare(b.date));
+  for (const t of sorted) {
+    const k = t.symbol;
+    if (!map[k]) map[k] = { symbol:k, name:t.name, shares:0, totalCost:0, realizedGain:0, trades:[] };
+    const h = map[k];
+    h.trades.push(t);
+    if (t.action === "buy") {
+      h.totalCost += Number(t.shares)*Number(t.price) + Number(t.fee||0) + Number(t.tax||0);
+      h.shares += Number(t.shares);
+    } else {
+      const avgCost = h.shares > 0 ? h.totalCost / h.shares : 0;
+      h.realizedGain += Number(t.shares)*Number(t.price) - Number(t.fee||0) - Number(t.tax||0) - avgCost*Number(t.shares);
+      h.totalCost -= avgCost * Number(t.shares);
+      h.shares -= Number(t.shares);
+      if (h.shares < 0) h.shares = 0;
+      if (h.totalCost < 0) h.totalCost = 0;
+    }
+  }
+  return Object.values(map).filter(h => h.shares > 0);
+}
+
+async function fetchPrice(symbol, apiKey) {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type":"application/json", "x-api-key":apiKey, "anthropic-version":"2023-06-01" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514", max_tokens: 400,
+      tools: [{ type:"web_search_20250305", name:"web_search" }],
+      messages: [{ role:"user", content:`Search current price of Taiwan stock ${symbol} on TWSE. Reply ONLY JSON: {"price":NUMBER,"change":NUMBER,"changePct":NUMBER}` }]
+    })
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || res.status); }
+  const data = await res.json();
+  const text = data.content.filter(b=>b.type==="text").map(b=>b.text).join("");
+  const match = text.match(/\{[\s\S]*?\}/);
+  if (!match) throw new Error("No price");
+  return JSON.parse(match[0]);
+}
+
+async function parseImage(base64, mediaType, apiKey) {
+  const res = await fetch("https://api.anthropic.com/v1/messages", {
+    method: "POST",
+    headers: { "Content-Type":"application/json", "x-api-key":apiKey, "anthropic-version":"2023-06-01" },
+    body: JSON.stringify({
+      model: "claude-sonnet-4-20250514", max_tokens: 2000,
+      messages: [{ role:"user", content: [
+        { type:"image", source:{ type:"base64", media_type:mediaType, data:base64 } },
+        { type:"text", text:`這是台灣集保或券商的證券交易明細截圖。解析所有交易記錄，僅回傳 JSON array（無任何說明文字）：
+[{"date":"YYYY-MM-DD","symbol":"股票代號","name":"股票名稱","action":"buy或sell","shares":股數,"price":成交價,"fee":手續費,"tax":交易稅}]
+看不清楚的欄位填0，只回傳JSON array。` }
+      ]}]
+    })
+  });
+  if (!res.ok) { const e = await res.json(); throw new Error(e.error?.message || res.status); }
+  const data = await res.json();
+  const text = data.content.filter(b=>b.type==="text").map(b=>b.text).join("");
+  const match = text.match(/\[[\s\S]*\]/);
+  if (!match) throw new Error("無法解析，請確認圖片清晰");
+  return JSON.parse(match[0]);
+}
+
+// ── Components ────────────────────────────────────────────────────
+function Spinner() { return <div className="spinner"><div/><div/><div/></div>; }
+
+function Stat({ label, value, highlight }) {
+  return (
+    <div className="stat">
+      <span className="stat-label">{label}</span>
+      <span className={`stat-value ${highlight||""}`}>{value}</span>
+    </div>
+  );
+}
+
+function HoldingCard({ holding, onDelete }) {
+  const { symbol, name, shares, totalCost, currentPrice, priceChange, priceChangePct, loading, error } = holding;
+  const avgCost = shares > 0 ? totalCost / shares : 0;
+  const marketValue = currentPrice != null ? currentPrice * shares : null;
+  const unrealizedGain = marketValue != null ? marketValue - totalCost : null;
+  const isUp = priceChange > 0, isDown = priceChange < 0;
+  return (
+    <div className={`card ${isUp?"up":isDown?"down":""}`}>
+      <div className="card-header">
+        <div><span className="symbol">{symbol}</span><span className="name">{name}</span></div>
+        <button className="del-btn" onClick={() => onDelete(symbol)}>✕</button>
+      </div>
+      <div className="price-row">
+        {loading ? <Spinner/> : error ? <span className="error-text">無法取得報價</span> : <>
+          <span className="current-price">{currentPrice!=null?`$${fmt(currentPrice)}`:"—"}</span>
+          <span className={`change ${isUp?"pos":isDown?"neg":""}`}>
+            {priceChange!=null?`${isUp?"▲":isDown?"▼":""}${Math.abs(priceChange).toFixed(2)} (${priceChangePct>0?"+":""}${priceChangePct?.toFixed(2)}%)`:""}
+          </span>
+        </>}
+      </div>
+      <div className="stats-grid">
+        <Stat label="持有股數" value={`${fmt(shares)} 股`}/>
+        <Stat label="平均成本" value={`$${avgCost.toFixed(2)}`}/>
+        <Stat label="投入總成本" value={`$${fmt(Math.round(totalCost))}`}/>
+        <Stat label="目前市值" value={marketValue!=null?`$${fmt(Math.round(marketValue))}`:"—"}/>
+        <Stat label="未實現損益"
+          value={unrealizedGain!=null?`${unrealizedGain>=0?"+":""}$${fmt(Math.round(unrealizedGain))}`:"—"}
+          highlight={unrealizedGain!=null?(unrealizedGain>=0?"pos":"neg"):""}/>
+        <Stat label="報酬率"
+          value={unrealizedGain!=null&&totalCost>0?`${pct(unrealizedGain,totalCost)}%`:"—"}
+          highlight={unrealizedGain!=null?(unrealizedGain>=0?"pos":"neg"):""}/>
+      </div>
+    </div>
+  );
+}
+
+function AddManualModal({ onClose, onAdd }) {
+  const [form, setForm] = useState({ date:new Date().toISOString().slice(0,10), symbol:"", name:"", action:"buy", shares:"", price:"", fee:"", tax:"" });
+  const set = k => e => setForm(f => ({...f, [k]:e.target.value}));
+  const submit = () => {
+    if (!form.symbol||!form.shares||!form.price) return alert("請填寫股票代號、股數和成交價");
+    onAdd([{ ...form, shares:Number(form.shares), price:Number(form.price), fee:Number(form.fee||0), tax:Number(form.tax||0) }]);
+    onClose();
+  };
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" onClick={e=>e.stopPropagation()}>
+        <h3>手動新增交易記錄</h3>
+        <div className="form-grid">
+          <label>日期<input type="date" value={form.date} onChange={set("date")}/></label>
+          <label>股票代號<input placeholder="e.g. 2330" value={form.symbol} onChange={set("symbol")}/></label>
+          <label>股票名稱<input placeholder="e.g. 台積電" value={form.name} onChange={set("name")}/></label>
+          <label>買/賣<select value={form.action} onChange={set("action")}><option value="buy">買入</option><option value="sell">賣出</option></select></label>
+          <label>股數<input type="number" placeholder="1000" value={form.shares} onChange={set("shares")}/></label>
+          <label>成交價（元）<input type="number" step="0.01" value={form.price} onChange={set("price")}/></label>
+          <label>手續費（元）<input type="number" placeholder="0" value={form.fee} onChange={set("fee")}/></label>
+          <label>交易稅（元）<input type="number" placeholder="0" value={form.tax} onChange={set("tax")}/></label>
+        </div>
+        <div className="modal-actions">
+          <button className="btn-secondary" onClick={onClose}>取消</button>
+          <button className="btn-primary" onClick={submit}>新增</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TxnModal({ transactions, onClose, onDelete }) {
+  const bySymbol = {};
+  for (const t of transactions) {
+    if (!bySymbol[t.symbol]) bySymbol[t.symbol] = [];
+    bySymbol[t.symbol].push(t);
+  }
+  return (
+    <div className="modal-overlay" onClick={onClose}>
+      <div className="modal" style={{maxWidth:700}} onClick={e=>e.stopPropagation()}>
+        <h3 style={{marginBottom:16}}>交易明細記錄（共 {transactions.length} 筆）</h3>
+        {Object.entries(bySymbol).map(([sym, txns]) => (
+          <div key={sym} style={{marginBottom:20}}>
+            <div className="section-title">{sym} {txns[0].name}</div>
+            <table className="txn-table">
+              <thead><tr><th>日期</th><th>方向</th><th>股數</th><th>成交價</th><th>費用</th><th>稅</th><th></th></tr></thead>
+              <tbody>
+                {[...txns].sort((a,b)=>a.date.localeCompare(b.date)).map((t,i) => (
+                  <tr key={t.id||i}>
+                    <td>{t.date}</td>
+                    <td><span className={t.action==="buy"?"badge-buy":"badge-sell"}>{t.action==="buy"?"買入":"賣出"}</span></td>
+                    <td>{fmt(t.shares)}</td>
+                    <td>${Number(t.price).toFixed(2)}</td>
+                    <td>${fmt(t.fee||0)}</td>
+                    <td>${fmt(t.tax||0)}</td>
+                    <td><button className="del-btn" onClick={()=>onDelete(t)} style={{fontSize:"0.75rem"}}>刪</button></td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        ))}
+        <div className="modal-actions"><button className="btn-secondary" onClick={onClose}>關閉</button></div>
+      </div>
+    </div>
+  );
+}
+
+// ── Main App ──────────────────────────────────────────────────────
+function App() {
+  const [config, setConfig] = useState(loadConfig);
+  const [configInput, setConfigInput] = useState(loadConfig);
+  const [dbClient, setDbClient] = useState(null);
+  const [dbStatus, setDbStatus] = useState("idle"); // idle | ok | err
+  const [transactions, setTransactions] = useState([]);
+  const [holdings, setHoldings] = useState([]);
+  const [loading, setLoading] = useState(false);
+  const [uploading, setUploading] = useState(false);
+  const [uploadMsg, setUploadMsg] = useState("");
+  const [showManual, setShowManual] = useState(false);
+  const [showTxns, setShowTxns] = useState(false);
+  const [refreshing, setRefreshing] = useState(false);
+  const [lastUpdated, setLastUpdated] = useState(null);
+  const [showConfig, setShowConfig] = useState(false);
+  const fileRef = useRef();
+
+  // Init Supabase client when config changes
+  useEffect(() => {
+    if (config.supabaseUrl && config.supabaseKey) {
+      const client = createClient(config.supabaseUrl, config.supabaseKey);
+      setDbClient(client);
+      setDbStatus("idle");
+      setLoading(true);
+      dbLoadTxns(client)
+        .then(data => { setTransactions(data); setDbStatus("ok"); })
+        .catch(() => setDbStatus("err"))
+        .finally(() => setLoading(false));
+    }
+  }, [config.supabaseUrl, config.supabaseKey]);
+
+  // Recompute holdings when transactions change
+  useEffect(() => {
+    const h = computeHoldings(transactions);
+    setHoldings(h.map(hh => ({ ...hh, loading:false, currentPrice:null, priceChange:null, priceChangePct:null, error:false })));
+  }, [transactions]);
+
+  const saveConfigAndApply = () => {
+    saveConfig(configInput);
+    setConfig(configInput);
+    setShowConfig(false);
+  };
+
+  const refreshPrices = useCallback(async () => {
+    if (!config.anthropicKey) return alert("請先設定 Anthropic API Key");
+    const current = computeHoldings(transactions);
+    if (current.length === 0) return;
+    setRefreshing(true);
+    setHoldings(prev => prev.map(h => ({...h, loading:true})));
+    const results = await Promise.allSettled(current.map(h => fetchPrice(h.symbol, config.anthropicKey)));
+    setHoldings(prev => prev.map((h,i) => {
+      const r = results[i];
+      return r.status==="fulfilled"
+        ? {...h, loading:false, currentPrice:r.value.price, priceChange:r.value.change, priceChangePct:r.value.changePct, error:false}
+        : {...h, loading:false, error:true};
+    }));
+    setLastUpdated(new Date());
+    setRefreshing(false);
+  }, [config.anthropicKey, transactions]);
+
+  const handleImageUpload = async e => {
+    const file = e.target.files[0];
+    if (!file) return;
+    if (!config.anthropicKey) { alert("請先設定 Anthropic API Key"); return; }
+    setUploading(true);
+    setUploadMsg("AI 解析中…");
+    const reader = new FileReader();
+    reader.onload = async () => {
+      const base64 = reader.result.split(",")[1];
+      try {
+        const parsed = await parseImage(base64, file.type, config.anthropicKey);
+        if (dbClient) {
+          await dbAddTxns(dbClient, parsed);
+          const fresh = await dbLoadTxns(dbClient);
+          setTransactions(fresh);
+        } else {
+          setTransactions(prev => [...prev, ...parsed]);
+        }
+        setUploadMsg(`✓ 成功匯入 ${parsed.length} 筆交易記錄`);
+      } catch(err) { setUploadMsg("❌ " + err.message); }
+      setUploading(false);
+    };
+    reader.readAsDataURL(file);
+    e.target.value = "";
+  };
+
+  const addTransactions = async txns => {
+    if (dbClient) {
+      await dbAddTxns(dbClient, txns);
+      const fresh = await dbLoadTxns(dbClient);
+      setTransactions(fresh);
+    } else {
+      setTransactions(prev => [...prev, ...txns]);
+    }
+  };
+
+  const deleteHolding = async symbol => {
+    if (!confirm(`確定要刪除 ${symbol} 的所有交易記錄？`)) return;
+    if (dbClient) {
+      await dbDeleteBySymbol(dbClient, symbol);
+      const fresh = await dbLoadTxns(dbClient);
+      setTransactions(fresh);
+    } else {
+      setTransactions(prev => prev.filter(t => t.symbol !== symbol));
+    }
+  };
+
+  const deleteTxn = async txn => {
+    if (dbClient && txn.id) {
+      await dbDeleteTxn(dbClient, txn.id);
+      const fresh = await dbLoadTxns(dbClient);
+      setTransactions(fresh);
+    } else {
+      setTransactions(prev => prev.filter(t => !(
+        t.symbol===txn.symbol&&t.date===txn.date&&t.action===txn.action&&
+        Number(t.shares)===Number(txn.shares)&&Number(t.price)===Number(txn.price)
+      )));
+    }
+  };
+
+  const totalCost = holdings.reduce((s,h)=>s+h.totalCost,0);
+  const totalMarket = holdings.reduce((s,h)=>s+(h.currentPrice!=null?h.currentPrice*h.shares:0),0);
+  const totalGain = totalMarket - totalCost;
+  const anyPrice = holdings.some(h=>h.currentPrice!=null);
+  const configOk = config.supabaseUrl && config.supabaseKey && config.anthropicKey;
+
+  return (
+    <>
+    <div className="app">
+      {/* Header */}
+      <div className="header">
+        <div className="logo">台股<span>資產追蹤</span></div>
+        <div className="header-actions">
+          <span className="db-status">
+            <span className={`status-dot ${dbStatus==="ok"?"ok":dbStatus==="err"?"err":"idle"}`}/>
+            {dbStatus==="ok"?"資料庫已連線":dbStatus==="err"?"連線失敗":"未連線"}
+          </span>
+          {lastUpdated && <span className="last-updated">更新：{lastUpdated.toLocaleTimeString("zh-TW")}</span>}
+          <button className="btn-secondary" onClick={()=>setShowConfig(v=>!v)}>⚙ 設定</button>
+          <button className="btn-secondary" onClick={()=>setShowManual(true)}>＋ 手動新增</button>
+          <button className="btn-secondary" onClick={()=>setShowTxns(true)}>📋 明細</button>
+          <button className="btn-primary" onClick={refreshPrices} disabled={refreshing||holdings.length===0}>
+            {refreshing?"更新中…":"⟳ 更新價格"}
+          </button>
+        </div>
+      </div>
+
+      {/* Config panel */}
+      {showConfig && (
+        <div className="config-bar">
+          <h4>⚙ 連線設定</h4>
+          <div className="config-row">
+            <label>Supabase URL</label>
+            <input placeholder="https://xxxx.supabase.co" value={configInput.supabaseUrl}
+              onChange={e=>setConfigInput(p=>({...p,supabaseUrl:e.target.value}))}/>
+          </div>
+          <div className="config-row">
+            <label>Supabase Anon Key</label>
+            <input type="password" placeholder="eyJh..." value={configInput.supabaseKey}
+              onChange={e=>setConfigInput(p=>({...p,supabaseKey:e.target.value}))}/>
+          </div>
+          <div className="config-row">
+            <label>Anthropic API Key</label>
+            <input type="password" placeholder="sk-ant-..." value={configInput.anthropicKey}
+              onChange={e=>setConfigInput(p=>({...p,anthropicKey:e.target.value}))}/>
+            <button className="btn-primary" onClick={saveConfigAndApply}>儲存</button>
+          </div>
+          <div className="config-hint">
+            · Supabase：<a href="https://supabase.com" target="_blank">supabase.com</a> 免費建立專案，取得 URL 與 anon key<br/>
+            · Anthropic：<a href="https://console.anthropic.com" target="_blank">console.anthropic.com</a> 取得 API Key（用於 AI 解析截圖與即時股價）<br/>
+            · 設定值存在本機 localStorage，不會上傳到任何地方
+          </div>
+        </div>
+      )}
+
+      {/* Summary */}
+      {holdings.length > 0 && (
+        <div className="summary">
+          <div className="sum-item"><span className="sum-label">投入總成本</span><span className="sum-value">${fmt(Math.round(totalCost))}</span></div>
+          {anyPrice && <>
+            <div className="sum-divider"/>
+            <div className="sum-item"><span className="sum-label">總市值</span><span className="sum-value">${fmt(Math.round(totalMarket))}</span></div>
+            <div className="sum-divider"/>
+            <div className="sum-item">
+              <span className="sum-label">未實現總損益</span>
+              <span className={`sum-value ${totalGain>=0?"pos":"neg"}`}>{totalGain>=0?"+":""}${fmt(Math.round(totalGain))}</span>
+            </div>
+            <div className="sum-divider"/>
+            <div className="sum-item">
+              <span className="sum-label">整體報酬率</span>
+              <span className={`sum-value ${totalGain>=0?"pos":"neg"}`}>{pct(totalGain,totalCost)}%</span>
+            </div>
+          </>}
+        </div>
+      )}
+
+      {/* Upload */}
+      <div className="upload-zone" onClick={()=>fileRef.current.click()}>
+        <input ref={fileRef} type="file" accept="image/*" style={{display:"none"}} onChange={handleImageUpload}/>
+        <div className="upload-icon">📄</div>
+        <div>上傳集保交易明細截圖（已去除個人資訊）</div>
+        <div className="upload-hint">支援 PNG / JPG — AI 自動解析買賣記錄</div>
+        {uploading && <div className="upload-msg">⏳ {uploadMsg}</div>}
+        {!uploading && uploadMsg && <div className={`upload-msg ${uploadMsg.startsWith("❌")?"err":""}`}>{uploadMsg}</div>}
+      </div>
+
+      {/* Holdings */}
+      {loading
+        ? <div className="empty"><Spinner/><p style={{marginTop:16}}>載入資料中…</p></div>
+        : holdings.length===0
+          ? <div className="empty"><div className="empty-icon">📊</div><p>尚無持股資料<br/>請上傳集保截圖或手動新增交易記錄</p></div>
+          : <div className="grid">{holdings.map(h=><HoldingCard key={h.symbol} holding={h} onDelete={deleteHolding}/>)}</div>
+      }
+    </div>
+
+    {showManual && <AddManualModal onClose={()=>setShowManual(false)} onAdd={addTransactions}/>}
+    {showTxns && <TxnModal transactions={transactions} onClose={()=>setShowTxns(false)} onDelete={deleteTxn}/>}
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
+</script>
+</body>
+</html>
+
 
