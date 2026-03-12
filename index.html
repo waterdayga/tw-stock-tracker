@@ -50,31 +50,48 @@
             }, []);
 
             // Yahoo Finance 報價
-            const fetchPrices = async () => {
+          const fetchPrices = async () => {
                 const symbols = [...new Set(transactions.map(t => t.symbol))];
                 if (!symbols.length) return alert("請先匯入資料");
                 setIsUpdating(true);
+                
                 try {
-                    // 判斷 4 碼為上市 (.TW)，其餘為上櫃 (.TWO)
-                    const yf = symbols.map(s => s.length === 4 ? `${s}.TW` : `${s}.TWO`).join(',');
-                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(`https://query1.finance.yahoo.com/v7/finance/quote?symbols=${yf}`)}`;
+                    // 1. 格式化代碼：4碼通常是上市(.TW)，其他(如6488)是上櫃(.TWO)
+                    const yf = symbols.map(s => {
+                        const code = String(s).trim();
+                        return code.length === 4 ? `${code}.TW` : `${code}.TWO`;
+                    }).join(',');
+
+                    // 2. 使用 AllOrigins 代理，並加上隨機參數防止快取舊資料
+                    const target = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${yf}`;
+                    const proxyUrl = `https://api.allorigins.win/raw?url=${encodeURIComponent(target)}&cache=${Date.now()}`;
                     
                     const res = await fetch(proxyUrl);
+                    if (!res.ok) throw new Error("代理伺服器回應異常");
+                    
                     const json = await res.json();
                     const map = {};
                     
                     if (json.quoteResponse && json.quoteResponse.result) {
                         json.quoteResponse.result.forEach(item => {
-                            const sym = item.symbol.split('.')[0];
-                            map[sym] = { price: item.regularMarketPrice };
+                            // 移除 .TW 或 .TWO 取得原始代號
+                            const sym = item.symbol.replace('.TW', '').replace('.TWO', '');
+                            map[sym] = { 
+                                price: item.regularMarketPrice,
+                                name: item.longName 
+                            };
                         });
                         setPrices(map);
-                        alert("報價更新成功！");
+                        alert("報價已更新！");
+                    } else {
+                        throw new Error("找不到報價資料");
                     }
                 } catch (e) {
-                    alert("目前無法取得即時報價，請稍後再試。");
+                    console.error("報價錯誤:", e);
+                    alert("更新失敗：可能是網路限制或代碼不正確。您可以嘗試切換網路(如手機熱點)再試一次。");
+                } finally {
+                    setIsUpdating(false);
                 }
-                setIsUpdating(false);
             };
 
             // Excel 匯入 (自動跳過前兩行標題與說明)
@@ -223,3 +240,4 @@
     </script>
 </body>
 </html>
+
