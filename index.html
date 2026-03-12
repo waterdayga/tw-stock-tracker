@@ -1,613 +1,810 @@
 <!DOCTYPE html>
 <html lang="zh-TW">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<meta charset="UTF-8"/>
+<meta name="viewport" content="width=device-width,initial-scale=1.0"/>
 <title>台股資產追蹤</title>
-<link rel="preconnect" href="https://fonts.googleapis.com" />
-<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=DM+Mono:wght@400;500&display=swap" rel="stylesheet" />
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700&family=DM+Mono:wght@400;500;600&display=swap" rel="stylesheet"/>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react/18.2.0/umd/react.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/react-dom/18.2.0/umd/react-dom.production.min.js"></script>
 <script src="https://cdnjs.cloudflare.com/ajax/libs/babel-standalone/7.23.2/babel.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
 <script src="https://cdn.sheetjs.com/xlsx-0.20.3/package/dist/xlsx.full.min.js"></script>
 <style>
-  *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
-  :root {
-    --bg: #0e1117; --surface: #161b27; --surface2: #1e2535;
-    --border: #2a3248; --text: #e8eaf0; --muted: #7a8299;
-    --accent: #4f8ef7; --green: #34d399; --red: #f87171;
-    --yellow: #fbbf24; --radius: 12px;
-  }
-  body { background: var(--bg); color: var(--text); font-family: 'Noto Sans TC', sans-serif; min-height: 100vh; }
-  .app { max-width: 1100px; margin: 0 auto; padding: 24px 16px 60px; }
-  .header { display: flex; align-items: center; justify-content: space-between; margin-bottom: 32px; flex-wrap: wrap; gap: 12px; }
-  .logo { font-size: 1.4rem; font-weight: 700; letter-spacing: -0.5px; }
-  .logo span { color: var(--accent); }
-  .header-actions { display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
-  .summary { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 20px 24px; margin-bottom: 28px; display: flex; gap: 32px; flex-wrap: wrap; align-items: center; }
-  .sum-item { display: flex; flex-direction: column; gap: 2px; }
-  .sum-label { font-size: 0.72rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; }
-  .sum-value { font-size: 1.25rem; font-weight: 700; font-family: 'DM Mono', monospace; }
-  .sum-value.pos { color: var(--green); }
-  .sum-value.neg { color: var(--red); }
-  .sum-divider { width: 1px; height: 36px; background: var(--border); }
-  .grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(300px, 1fr)); gap: 16px; }
-  .card { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 18px; transition: transform 0.15s, box-shadow 0.15s; position: relative; overflow: hidden; }
-  .card::before { content: ''; position: absolute; top: 0; left: 0; right: 0; height: 3px; background: var(--border); }
-  .card.up::before { background: var(--green); }
-  .card.down::before { background: var(--red); }
-  .card:hover { transform: translateY(-2px); box-shadow: 0 8px 24px rgba(0,0,0,0.3); }
-  .card-header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 12px; }
-  .symbol { font-size: 1.1rem; font-weight: 700; font-family: 'DM Mono', monospace; color: var(--accent); margin-right: 8px; }
-  .name { font-size: 0.85rem; color: var(--muted); }
-  .del-btn { background: none; border: none; color: var(--muted); cursor: pointer; font-size: 0.8rem; padding: 2px 6px; border-radius: 4px; transition: all 0.15s; }
-  .del-btn:hover { background: var(--red); color: white; }
-  .price-row { display: flex; align-items: baseline; gap: 10px; margin-bottom: 16px; min-height: 32px; }
-  .current-price { font-size: 1.5rem; font-weight: 700; font-family: 'DM Mono', monospace; }
-  .change { font-size: 0.82rem; font-family: 'DM Mono', monospace; }
-  .change.pos { color: var(--green); }
-  .change.neg { color: var(--red); }
-  .stats-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
-  .stat { background: var(--surface2); border-radius: 8px; padding: 8px 10px; }
-  .stat-label { display: block; font-size: 0.68rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.5px; margin-bottom: 3px; }
-  .stat-value { font-size: 0.9rem; font-weight: 600; font-family: 'DM Mono', monospace; }
-  .stat-value.pos { color: var(--green); }
-  .stat-value.neg { color: var(--red); }
-  .btn-primary { background: var(--accent); color: white; border: none; border-radius: 8px; padding: 8px 16px; cursor: pointer; font-size: 0.88rem; font-weight: 600; transition: opacity 0.15s; font-family: inherit; }
-  .btn-primary:hover { opacity: 0.85; }
-  .btn-primary:disabled { opacity: 0.4; cursor: not-allowed; }
-  .btn-secondary { background: var(--surface2); color: var(--text); border: 1px solid var(--border); border-radius: 8px; padding: 8px 16px; cursor: pointer; font-size: 0.88rem; font-weight: 500; transition: all 0.15s; font-family: inherit; }
-  .btn-secondary:hover { border-color: var(--accent); color: var(--accent); }
-  .btn-green { background: rgba(52,211,153,0.12); color: var(--green); border: 1px solid rgba(52,211,153,0.3); border-radius: 8px; padding: 8px 16px; cursor: pointer; font-size: 0.88rem; font-weight: 500; transition: all 0.15s; font-family: inherit; }
-  .btn-green:hover { background: rgba(52,211,153,0.2); }
-  .btn-yellow { background: rgba(251,191,36,0.12); color: var(--yellow); border: 1px solid rgba(251,191,36,0.3); border-radius: 8px; padding: 8px 16px; cursor: pointer; font-size: 0.88rem; font-weight: 500; transition: all 0.15s; font-family: inherit; }
-  .btn-yellow:hover { background: rgba(251,191,36,0.2); }
-  .spinner { display: flex; gap: 4px; align-items: center; height: 32px; }
-  .spinner div { width: 6px; height: 6px; background: var(--accent); border-radius: 50%; animation: bounce 0.6s ease-in-out infinite; }
-  .spinner div:nth-child(2) { animation-delay: 0.1s; }
-  .spinner div:nth-child(3) { animation-delay: 0.2s; }
-  @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform:translateY(-6px)} }
-  .modal-overlay { position: fixed; inset: 0; background: rgba(0,0,0,0.7); display: flex; align-items: center; justify-content: center; z-index: 100; padding: 16px; }
-  .modal { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 24px; width: 100%; max-width: 520px; max-height: 90vh; overflow-y: auto; }
-  .modal h3 { margin-bottom: 20px; font-size: 1.1rem; }
-  .form-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 20px; }
-  .form-grid label { display: flex; flex-direction: column; gap: 5px; font-size: 0.82rem; color: var(--muted); }
-  .form-grid input, .form-grid select { background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 7px 10px; color: var(--text); font-size: 0.9rem; font-family: inherit; }
-  .form-grid input:focus, .form-grid select:focus { outline: none; border-color: var(--accent); }
-  .modal-actions { display: flex; gap: 8px; justify-content: flex-end; }
-  .empty { text-align: center; padding: 60px 20px; color: var(--muted); }
-  .empty-icon { font-size: 3rem; margin-bottom: 12px; }
-  .empty p { font-size: 0.9rem; line-height: 1.7; }
-  .error-text { font-size: 0.8rem; color: var(--red); }
-  .config-bar { background: var(--surface); border: 1px solid var(--border); border-radius: var(--radius); padding: 16px 18px; margin-bottom: 20px; }
-  .config-bar h4 { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; }
-  .config-row { display: flex; align-items: center; gap: 10px; flex-wrap: wrap; margin-bottom: 10px; }
-  .config-row:last-child { margin-bottom: 0; }
-  .config-row label { font-size: 0.82rem; color: var(--muted); white-space: nowrap; min-width: 130px; }
-  .config-row input { flex: 1; min-width: 200px; background: var(--surface2); border: 1px solid var(--border); border-radius: 6px; padding: 6px 10px; color: var(--text); font-size: 0.85rem; font-family: 'DM Mono', monospace; }
-  .config-row input:focus { outline: none; border-color: var(--accent); }
-  .config-hint { font-size: 0.75rem; color: var(--muted); margin-top: 8px; line-height: 1.6; }
-  .config-hint a { color: var(--accent); text-decoration: none; }
-  .status-dot { width: 8px; height: 8px; border-radius: 50%; display: inline-block; margin-right: 6px; }
-  .status-dot.ok { background: var(--green); }
-  .status-dot.err { background: var(--red); }
-  .status-dot.idle { background: var(--muted); }
-  .db-status { font-size: 0.8rem; color: var(--muted); }
-  .txn-table { width: 100%; border-collapse: collapse; font-size: 0.82rem; margin-bottom: 16px; }
-  .txn-table th { background: var(--surface2); color: var(--muted); text-align: left; padding: 7px 10px; font-weight: 500; font-size: 0.72rem; text-transform: uppercase; }
-  .txn-table td { padding: 7px 10px; border-bottom: 1px solid var(--border); }
-  .txn-table tr:last-child td { border-bottom: none; }
-  .badge-buy { background: rgba(52,211,153,0.15); color: var(--green); border-radius: 4px; padding: 1px 6px; font-size: 0.75rem; }
-  .badge-sell { background: rgba(248,113,113,0.15); color: var(--red); border-radius: 4px; padding: 1px 6px; font-size: 0.75rem; }
-  .section-title { font-size: 0.8rem; color: var(--muted); text-transform: uppercase; letter-spacing: 0.8px; margin-bottom: 12px; }
-  .last-updated { font-size: 0.75rem; color: var(--muted); }
-  .notice { background: rgba(79,142,247,0.08); border: 1px solid rgba(79,142,247,0.25); border-radius: var(--radius); padding: 12px 16px; margin-bottom: 20px; font-size: 0.82rem; color: var(--muted); line-height: 1.6; }
-  .notice strong { color: var(--accent); }
-  /* Import zone */
-  .import-zone { display: grid; grid-template-columns: 1fr 1fr; gap: 12px; margin-bottom: 28px; }
-  .import-card { background: var(--surface); border: 2px dashed var(--border); border-radius: var(--radius); padding: 20px; text-align: center; cursor: pointer; transition: all 0.2s; }
-  .import-card:hover { border-color: var(--accent); background: rgba(79,142,247,0.05); }
-  .import-card.excel:hover { border-color: var(--green); background: rgba(52,211,153,0.05); }
-  .import-icon { font-size: 1.8rem; margin-bottom: 8px; }
-  .import-title { font-size: 0.95rem; font-weight: 600; margin-bottom: 4px; }
-  .import-hint { font-size: 0.78rem; color: var(--muted); }
-  .import-msg { margin-top: 8px; font-size: 0.82rem; }
-  .import-msg.ok { color: var(--green); }
-  .import-msg.err { color: var(--red); }
-  /* Preview table */
-  .preview-box { background: var(--surface2); border-radius: 8px; padding: 12px; margin-bottom: 16px; max-height: 280px; overflow-y: auto; }
-  .preview-box table { width: 100%; border-collapse: collapse; font-size: 0.8rem; }
-  .preview-box th { color: var(--muted); text-align: left; padding: 4px 8px; font-size: 0.72rem; text-transform: uppercase; border-bottom: 1px solid var(--border); }
-  .preview-box td { padding: 5px 8px; border-bottom: 1px solid rgba(42,50,72,0.5); font-family: 'DM Mono', monospace; }
-  .preview-box tr:last-child td { border-bottom: none; }
-  .err-row td { color: var(--red); }
-  @media (max-width: 600px) {
-    .form-grid { grid-template-columns: 1fr; }
-    .summary { gap: 16px; }
-    .sum-divider { display: none; }
-    .header-actions { gap: 6px; }
-    .import-zone { grid-template-columns: 1fr; }
-  }
+*,*::before,*::after{box-sizing:border-box;margin:0;padding:0}
+:root{
+  --bg:#0d0f14;--surface:#13161f;--surface2:#1a1e2a;--surface3:#222636;
+  --border:#252a3a;--text:#f0f2f8;--muted:#6b7494;--accent:#4f8ef7;
+  --green:#22c55e;--red:#ef4444;--yellow:#f59e0b;--radius:14px;
+}
+body{background:var(--bg);color:var(--text);font-family:'Noto Sans TC',sans-serif;min-height:100vh;}
+.app{max-width:480px;margin:0 auto;padding:0 0 80px;}
+
+/* Header */
+.topbar{display:flex;align-items:center;justify-content:space-between;padding:16px 16px 8px;}
+.topbar-title{font-size:1.1rem;font-weight:700;letter-spacing:-0.3px;}
+.topbar-actions{display:flex;gap:8px;}
+.icon-btn{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:6px 10px;cursor:pointer;font-size:0.8rem;color:var(--muted);font-family:inherit;transition:all 0.15s;}
+.icon-btn:hover{color:var(--text);border-color:var(--accent);}
+
+/* Tab bar */
+.tabbar{display:flex;padding:0 16px;border-bottom:1px solid var(--border);margin-bottom:0;}
+.tab{background:none;border:none;color:var(--muted);padding:10px 16px;cursor:pointer;font-size:0.9rem;font-family:inherit;border-bottom:2px solid transparent;margin-bottom:-1px;transition:all 0.15s;font-weight:500;}
+.tab.active{color:var(--accent);border-bottom-color:var(--accent);}
+
+/* Summary hero */
+.hero{padding:20px 16px 8px;}
+.hero-row{display:flex;gap:12px;margin-bottom:12px;}
+.hero-card{flex:1;background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;}
+.hero-label{font-size:0.7rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;margin-bottom:6px;}
+.hero-value{font-size:1.35rem;font-weight:700;font-family:'DM Mono',monospace;line-height:1;}
+.hero-value.pos{color:var(--green);}
+.hero-value.neg{color:var(--red);}
+.hero-sub{font-size:0.75rem;font-family:'DM Mono',monospace;margin-top:4px;}
+.hero-sub.pos{color:var(--green);}
+.hero-sub.neg{color:var(--red);}
+.hero-sub.muted{color:var(--muted);}
+
+/* Bar chart */
+.chart-section{padding:8px 16px 4px;}
+.chart-title{font-size:0.75rem;color:var(--muted);margin-bottom:8px;display:flex;align-items:center;gap:6px;}
+.chart-legend{display:flex;gap:10px;}
+.legend-dot{width:8px;height:8px;border-radius:2px;display:inline-block;margin-right:4px;}
+.bar-chart{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:12px 8px 8px;position:relative;}
+.bars-wrap{display:flex;align-items:flex-end;gap:2px;height:80px;position:relative;}
+.bar-col{flex:1;display:flex;flex-direction:column;align-items:center;gap:1px;height:100%;justify-content:center;cursor:default;}
+.bar{width:100%;border-radius:2px 2px 0 0;min-height:2px;transition:opacity 0.15s;}
+.bar.pos{background:var(--green);}
+.bar.neg{background:var(--red);border-radius:0 0 2px 2px;}
+.bar-zero{width:100%;height:1px;background:var(--border);}
+.chart-x{display:flex;justify-content:space-between;padding:4px 8px 0;font-size:0.65rem;color:var(--muted);}
+
+/* Stock list */
+.list-section{padding:12px 16px 0;}
+.list-header{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;}
+.list-title{font-size:0.78rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.8px;}
+.refresh-btn{background:var(--accent);color:white;border:none;border-radius:6px;padding:5px 12px;cursor:pointer;font-size:0.78rem;font-family:inherit;font-weight:600;transition:opacity 0.15s;}
+.refresh-btn:hover{opacity:0.85;}
+.refresh-btn:disabled{opacity:0.4;cursor:not-allowed;}
+
+.stock-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:14px 16px;margin-bottom:8px;position:relative;overflow:hidden;cursor:default;}
+.stock-card::before{content:'';position:absolute;left:0;top:0;bottom:0;width:3px;}
+.stock-card.pos::before{background:var(--green);}
+.stock-card.neg::before{background:var(--red);}
+.stock-card.flat::before{background:var(--border);}
+.stock-top{display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:10px;}
+.stock-name-wrap{display:flex;flex-direction:column;gap:2px;}
+.stock-name{font-size:1rem;font-weight:700;}
+.stock-code{font-size:0.72rem;color:var(--muted);font-family:'DM Mono',monospace;}
+.stock-price-wrap{text-align:right;}
+.stock-price{font-size:1.1rem;font-weight:700;font-family:'DM Mono',monospace;}
+.stock-change{font-size:0.75rem;font-family:'DM Mono',monospace;}
+.stock-change.pos{color:var(--green);}
+.stock-change.neg{color:var(--red);}
+.stock-stats{display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;}
+.stat-item{background:var(--surface2);border-radius:8px;padding:8px 10px;}
+.stat-label{font-size:0.62rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.5px;margin-bottom:3px;}
+.stat-value{font-size:0.85rem;font-weight:600;font-family:'DM Mono',monospace;}
+.stat-value.pos{color:var(--green);}
+.stat-value.neg{color:var(--red);}
+
+/* Trend chart */
+.trend-section{padding:12px 16px 0;}
+.trend-card{background:var(--surface);border:1px solid var(--border);border-radius:var(--radius);padding:16px;}
+.trend-title{font-size:0.9rem;font-weight:700;margin-bottom:12px;text-align:center;}
+.trend-tabs{display:flex;gap:6px;margin-bottom:16px;}
+.trend-tab{flex:1;background:var(--surface2);border:none;border-radius:6px;padding:7px;cursor:pointer;font-size:0.78rem;font-family:inherit;color:var(--muted);transition:all 0.15s;}
+.trend-tab.active{background:var(--accent);color:white;font-weight:600;}
+.trend-svg-wrap{width:100%;height:160px;position:relative;}
+.trend-svg-wrap svg{width:100%;height:100%;}
+.trend-x{display:flex;justify-content:space-between;padding:4px 0 0;font-size:0.65rem;color:var(--muted);}
+
+/* Bottom action bar */
+.action-bar{position:fixed;bottom:0;left:50%;transform:translateX(-50%);width:100%;max-width:480px;background:var(--surface);border-top:1px solid var(--border);padding:10px 16px;display:flex;gap:8px;z-index:50;}
+.action-btn{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px;cursor:pointer;font-size:0.82rem;font-family:inherit;color:var(--text);font-weight:500;transition:all 0.15s;}
+.action-btn:hover{border-color:var(--accent);color:var(--accent);}
+.action-btn.primary{background:var(--accent);color:white;border-color:var(--accent);}
+.action-btn.primary:hover{opacity:0.9;}
+
+/* Modals */
+.overlay{position:fixed;inset:0;background:rgba(0,0,0,0.75);display:flex;align-items:flex-end;justify-content:center;z-index:100;}
+.sheet{background:var(--surface);border-radius:20px 20px 0 0;padding:24px 16px 36px;width:100%;max-width:480px;max-height:85vh;overflow-y:auto;}
+.sheet h3{font-size:1rem;font-weight:700;margin-bottom:20px;text-align:center;}
+.form-group{display:flex;flex-direction:column;gap:5px;margin-bottom:14px;}
+.form-group label{font-size:0.78rem;color:var(--muted);}
+.form-group input,.form-group select{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:0.9rem;font-family:inherit;width:100%;}
+.form-group input:focus,.form-group select:focus{outline:none;border-color:var(--accent);}
+.form-row{display:grid;grid-template-columns:1fr 1fr;gap:10px;}
+.sheet-actions{display:flex;gap:8px;margin-top:4px;}
+.btn-cancel{flex:1;background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:11px;cursor:pointer;font-size:0.88rem;font-family:inherit;color:var(--text);}
+.btn-confirm{flex:2;background:var(--accent);border:none;border-radius:8px;padding:11px;cursor:pointer;font-size:0.88rem;font-family:inherit;color:white;font-weight:600;}
+
+/* Config sheet */
+.config-row{margin-bottom:14px;}
+.config-row label{font-size:0.78rem;color:var(--muted);display:block;margin-bottom:5px;}
+.config-row input{background:var(--surface2);border:1px solid var(--border);border-radius:8px;padding:10px 12px;color:var(--text);font-size:0.85rem;font-family:'DM Mono',monospace;width:100%;}
+.config-row input:focus{outline:none;border-color:var(--accent);}
+.config-hint{font-size:0.72rem;color:var(--muted);margin-top:6px;line-height:1.6;}
+.config-hint a{color:var(--accent);text-decoration:none;}
+
+/* Status */
+.status-bar{display:flex;align-items:center;gap:6px;padding:6px 16px;font-size:0.72rem;color:var(--muted);}
+.dot{width:6px;height:6px;border-radius:50%;background:var(--muted);}
+.dot.ok{background:var(--green);}
+.dot.err{background:var(--red);}
+
+/* Empty */
+.empty{text-align:center;padding:50px 20px;color:var(--muted);}
+.empty-icon{font-size:2.5rem;margin-bottom:12px;}
+
+/* Spinner */
+.spin{display:inline-flex;gap:3px;align-items:center;}
+.spin div{width:5px;height:5px;background:var(--accent);border-radius:50%;animation:bop 0.6s ease-in-out infinite;}
+.spin div:nth-child(2){animation-delay:0.1s;}
+.spin div:nth-child(3){animation-delay:0.2s;}
+@keyframes bop{0%,100%{transform:translateY(0)}50%{transform:translateY(-5px)}}
+
+/* Upload zone */
+.upload-zone{border:2px dashed var(--border);border-radius:var(--radius);padding:20px;text-align:center;cursor:pointer;transition:all 0.2s;margin-bottom:12px;}
+.upload-zone:hover{border-color:var(--green);background:rgba(34,197,94,0.05);}
+.upload-msg{font-size:0.8rem;margin-top:6px;}
+.upload-msg.ok{color:var(--green);}
+.upload-msg.err{color:var(--red);}
+
+/* Preview */
+.preview-wrap{background:var(--surface2);border-radius:8px;padding:10px;max-height:200px;overflow-y:auto;margin-bottom:12px;font-size:0.75rem;}
+.preview-wrap table{width:100%;border-collapse:collapse;}
+.preview-wrap th{color:var(--muted);text-align:left;padding:4px 6px;font-weight:500;}
+.preview-wrap td{padding:4px 6px;border-bottom:1px solid rgba(37,42,58,0.6);font-family:'DM Mono',monospace;}
+.preview-wrap tr:last-child td{border:none;}
+
+/* txn history */
+.txn-symbol-group{margin-bottom:16px;}
+.txn-symbol-header{font-size:0.75rem;color:var(--muted);text-transform:uppercase;letter-spacing:0.6px;margin-bottom:6px;padding-bottom:4px;border-bottom:1px solid var(--border);}
+.txn-row{display:flex;align-items:center;justify-content:space-between;padding:7px 0;border-bottom:1px solid rgba(37,42,58,0.5);}
+.txn-row:last-child{border:none;}
+.txn-left{display:flex;flex-direction:column;gap:2px;}
+.txn-date{font-size:0.72rem;color:var(--muted);}
+.txn-badge{font-size:0.68rem;padding:1px 6px;border-radius:3px;}
+.txn-badge.buy{background:rgba(34,197,94,0.15);color:var(--green);}
+.txn-badge.sell{background:rgba(239,68,68,0.15);color:var(--red);}
+.txn-right{text-align:right;font-family:'DM Mono',monospace;font-size:0.8rem;}
+.del-btn{background:none;border:none;color:var(--muted);cursor:pointer;font-size:0.72rem;padding:2px 6px;border-radius:4px;margin-left:8px;}
+.del-btn:hover{background:var(--red);color:white;}
+
+@media(max-width:360px){.stock-stats{grid-template-columns:1fr 1fr;}}
 </style>
 </head>
 <body>
 <div id="root"></div>
 <script type="text/babel">
-const { useState, useEffect, useCallback, useRef } = React;
+const {useState,useEffect,useCallback,useRef,useMemo}=React;
 
-// ── Config & Storage ──────────────────────────────────────────────
-const CFG_KEY = "tw_stock_config";
-function loadConfig() { try { return JSON.parse(localStorage.getItem(CFG_KEY)||"{}"); } catch { return {}; } }
-function saveConfig(c) { try { localStorage.setItem(CFG_KEY, JSON.stringify(c)); } catch {} }
+// ── Config ────────────────────────────────────────────────────────
+const CFG="tw_cfg";
+function loadCfg(){try{return JSON.parse(localStorage.getItem(CFG)||"{}");}catch{return {};}}
+function saveCfg(c){try{localStorage.setItem(CFG,JSON.stringify(c));}catch{}}
 
 // ── Supabase ──────────────────────────────────────────────────────
-function createSupabase(url, key) {
-  if (!url||!key) return null;
-  return window.supabase.createClient(url, key);
+function mkClient(url,key){return(!url||!key)?null:window.supabase.createClient(url,key);}
+async function dbLoad(c){const{data,error}=await c.from("transactions").select("*").order("date");if(error)throw error;return data||[];}
+async function dbAdd(c,txns){
+  const rows=txns.map(t=>({date:t.date,symbol:t.symbol,name:t.name,action:t.action,shares:+t.shares,price:+t.price,fee:+(t.fee||0),tax:+(t.tax||0)}));
+  const{error}=await c.from("transactions").insert(rows);if(error)throw error;
 }
-async function dbLoad(c) {
-  const {data,error} = await c.from("transactions").select("*").order("date");
-  if (error) throw error; return data||[];
-}
-async function dbAdd(c, txns) {
-  const rows = txns.map(t=>({date:t.date,symbol:t.symbol,name:t.name,action:t.action,shares:Number(t.shares),price:Number(t.price),fee:Number(t.fee||0),tax:Number(t.tax||0)}));
-  const {error} = await c.from("transactions").insert(rows);
-  if (error) throw error;
-}
-async function dbDelId(c, id) { const {error}=await c.from("transactions").delete().eq("id",id); if(error)throw error; }
-async function dbDelSymbol(c, s) { const {error}=await c.from("transactions").delete().eq("symbol",s); if(error)throw error; }
+async function dbDelId(c,id){const{error}=await c.from("transactions").delete().eq("id",id);if(error)throw error;}
+async function dbDelSym(c,s){const{error}=await c.from("transactions").delete().eq("symbol",s);if(error)throw error;}
 
-// ── TWSE 股價 ─────────────────────────────────────────────────────
-async function fetchPrice(symbol) {
-  for (const mkt of ["tse","otc"]) {
-    try {
-      const r = await fetch(`https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${mkt}_${symbol}.tw&json=1&delay=0`);
-      const d = await r.json();
-      if (d.msgArray?.length > 0) {
-        const s = d.msgArray[0];
-        const price = parseFloat(s.z !== "-" ? s.z : s.y);
-        const yClose = parseFloat(s.y);
-        if (!isNaN(price) && price > 0) {
-          const change = price - yClose;
-          return { price, change, changePct: yClose > 0 ? (change/yClose)*100 : 0 };
+// ── TWSE price ────────────────────────────────────────────────────
+async function fetchPrice(symbol){
+  for(const mkt of["tse","otc"]){
+    try{
+      const r=await fetch(`https://mis.twse.com.tw/stock/api/getStockInfo.jsp?ex_ch=${mkt}_${symbol}.tw&json=1&delay=0`);
+      const d=await r.json();
+      if(d.msgArray?.length>0){
+        const s=d.msgArray[0];
+        const price=parseFloat(s.z!=="-"?s.z:s.y);
+        const yClose=parseFloat(s.y);
+        if(!isNaN(price)&&price>0){
+          return{price,change:price-yClose,changePct:yClose>0?((price-yClose)/yClose)*100:0};
         }
       }
-    } catch {}
+    }catch{}
   }
-  throw new Error("無法取得報價");
+  throw new Error("no price");
 }
 
-// ── Excel 解析 ────────────────────────────────────────────────────
-function parseExcel(file) {
-  return new Promise((resolve, reject) => {
-    const reader = new FileReader();
-    reader.onload = (e) => {
-      try {
-        const wb = XLSX.read(e.target.result, { type: "array" });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const rows = XLSX.utils.sheet_to_json(ws, { header: 1, defval: "" });
-
-        // Find header row (skip rows until we find date/symbol headers)
-        let dataStartRow = 0;
-        for (let i = 0; i < Math.min(5, rows.length); i++) {
-          const row = rows[i].map(c => String(c).trim());
-          if (row.some(c => c.includes("日期") || c.includes("代號") || c === "date")) {
-            dataStartRow = i + 1;
-            break;
-          }
+// ── Excel parse ───────────────────────────────────────────────────
+function parseExcel(file){
+  return new Promise((res,rej)=>{
+    const rd=new FileReader();
+    rd.onload=e=>{
+      try{
+        const wb=XLSX.read(e.target.result,{type:"array"});
+        const ws=wb.Sheets[wb.SheetNames[0]];
+        const rows=XLSX.utils.sheet_to_json(ws,{header:1,defval:""});
+        let start=0;
+        for(let i=0;i<Math.min(5,rows.length);i++){
+          const r=rows[i].map(c=>String(c).trim());
+          if(r.some(c=>c.includes("日期")||c.includes("代號")||c==="date")){start=i+1;break;}
         }
-
-        const parsed = [];
-        const errors = [];
-
-        for (let i = dataStartRow; i < rows.length; i++) {
-          const row = rows[i];
-          if (!row || row.every(c => c === "" || c == null)) continue;
-
-          // Handle Excel date serial numbers
-          let dateVal = String(row[0]||"").trim();
-          if (!isNaN(Number(dateVal)) && Number(dateVal) > 40000) {
-            const d = XLSX.SSF.parse_date_code(Number(dateVal));
-            dateVal = `${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`;
-          }
-          // Normalize date separators
-          dateVal = dateVal.replace(/\//g, "-").replace(/\./g, "-");
-
-          const symbol = String(row[1]||"").trim();
-          const name = String(row[2]||"").trim();
-          const action = String(row[3]||"").trim().toLowerCase();
-          const shares = Number(row[4]);
-          const price = Number(row[5]);
-          const fee = Number(row[6]||0);
-          const tax = Number(row[7]||0);
-
-          // Validation
-          const rowErrors = [];
-          if (!/^\d{4}-\d{2}-\d{2}$/.test(dateVal)) rowErrors.push("日期格式錯誤");
-          if (!symbol) rowErrors.push("缺少股票代號");
-          if (!["buy","sell"].includes(action)) rowErrors.push("買/賣欄需填 buy 或 sell");
-          if (isNaN(shares) || shares <= 0) rowErrors.push("股數無效");
-          if (isNaN(price) || price <= 0) rowErrors.push("成交價無效");
-
-          if (rowErrors.length > 0) {
-            errors.push({ row: i+1, errors: rowErrors, raw: row });
-          } else {
-            parsed.push({ date:dateVal, symbol, name:name||symbol, action, shares, price, fee, tax });
-          }
+        const parsed=[],errors=[];
+        for(let i=start;i<rows.length;i++){
+          const row=rows[i];
+          if(!row||row.every(c=>c===""||c==null))continue;
+          let dv=String(row[0]||"").trim();
+          if(!isNaN(+dv)&&+dv>40000){const d=XLSX.SSF.parse_date_code(+dv);dv=`${d.y}-${String(d.m).padStart(2,"0")}-${String(d.d).padStart(2,"0")}`;}
+          dv=dv.replace(/[\/\.]/g,"-");
+          const sym=String(row[1]||"").trim();
+          const name=String(row[2]||"").trim();
+          const action=String(row[3]||"").trim().toLowerCase();
+          const shares=+row[4],price=+row[5],fee=+(row[6]||0),tax=+(row[7]||0);
+          const errs=[];
+          if(!/^\d{4}-\d{2}-\d{2}$/.test(dv))errs.push("日期格式");
+          if(!sym)errs.push("缺代號");
+          if(!["buy","sell"].includes(action))errs.push("買賣欄");
+          if(isNaN(shares)||shares<=0)errs.push("股數");
+          if(isNaN(price)||price<=0)errs.push("成交價");
+          if(errs.length)errors.push({row:i+1,errors:errs});
+          else parsed.push({date:dv,symbol:sym,name:name||sym,action,shares,price,fee,tax});
         }
-
-        resolve({ parsed, errors });
-      } catch(err) {
-        reject(new Error("Excel 解析失敗：" + err.message));
-      }
+        res({parsed,errors});
+      }catch(err){rej(new Error("解析失敗:"+err.message));}
     };
-    reader.onerror = () => reject(new Error("檔案讀取失敗"));
-    reader.readAsArrayBuffer(file);
+    rd.onerror=()=>rej(new Error("讀取失敗"));
+    rd.readAsArrayBuffer(file);
   });
 }
 
-// ── Utilities ─────────────────────────────────────────────────────
-const fmt = n => n==null ? "—" : n.toLocaleString("zh-TW",{minimumFractionDigits:0});
-const pct = (g,c) => c===0 ? "0.00" : ((g/c)*100).toFixed(2);
-
-function computeHoldings(transactions) {
-  const map = {};
-  for (const t of [...transactions].sort((a,b)=>a.date.localeCompare(b.date))) {
-    if (!map[t.symbol]) map[t.symbol] = {symbol:t.symbol,name:t.name,shares:0,totalCost:0};
-    const h = map[t.symbol];
-    if (t.action==="buy") {
-      h.totalCost += Number(t.shares)*Number(t.price)+Number(t.fee||0)+Number(t.tax||0);
-      h.shares += Number(t.shares);
-    } else {
-      const avg = h.shares>0 ? h.totalCost/h.shares : 0;
-      h.totalCost -= avg*Number(t.shares);
-      h.shares -= Number(t.shares);
-      if (h.shares<0) h.shares=0;
-      if (h.totalCost<0) h.totalCost=0;
+// ── Compute holdings ──────────────────────────────────────────────
+function computeHoldings(txns){
+  const map={};
+  for(const t of [...txns].sort((a,b)=>a.date.localeCompare(b.date))){
+    if(!map[t.symbol])map[t.symbol]={symbol:t.symbol,name:t.name,shares:0,totalCost:0};
+    const h=map[t.symbol];
+    if(t.action==="buy"){h.totalCost+=+t.shares*+t.price+(+t.fee||0)+(+t.tax||0);h.shares+=+t.shares;}
+    else{
+      const avg=h.shares>0?h.totalCost/h.shares:0;
+      h.totalCost-=avg*+t.shares;h.shares-=+t.shares;
+      if(h.shares<0)h.shares=0;if(h.totalCost<0)h.totalCost=0;
     }
   }
   return Object.values(map).filter(h=>h.shares>0);
 }
 
-// ── Components ────────────────────────────────────────────────────
-function Spinner() { return <div className="spinner"><div/><div/><div/></div>; }
-
-function Stat({label,value,highlight}) {
-  return <div className="stat"><span className="stat-label">{label}</span><span className={`stat-value ${highlight||""}`}>{value}</span></div>;
+// ── Daily P&L history (simulate from transactions + prices) ───────
+function buildDailyPnl(txns,priceMap){
+  // Group holdings by day, compute end-of-day value vs cost
+  // Simple: use last known close for each date
+  // Returns array of {date, pnl}
+  const sorted=[...txns].sort((a,b)=>a.date.localeCompare(b.date));
+  if(!sorted.length)return[];
+  // Collect all unique dates
+  const dateSet=new Set(sorted.map(t=>t.date));
+  const dates=[...dateSet].sort();
+  // For each date, compute cumulative holdings cost & value
+  const results=[];
+  for(let i=0;i<dates.length;i++){
+    const date=dates[i];
+    const txnsUpTo=sorted.filter(t=>t.date<=date);
+    const holdings=computeHoldings(txnsUpTo);
+    const totalCost=holdings.reduce((s,h)=>s+h.totalCost,0);
+    let totalValue=0;
+    for(const h of holdings){
+      const p=priceMap[h.symbol];
+      if(p!=null)totalValue+=p*h.shares;
+      else totalValue+=h.totalCost; // fallback to cost if no price
+    }
+    const prevResult=results[i-1];
+    const prevValue=prevResult?prevResult.totalValue:totalCost;
+    results.push({date,pnl:totalValue-prevValue,totalValue,totalCost,unrealized:totalValue-totalCost});
+  }
+  return results;
 }
 
-function HoldingCard({holding,onDelete}) {
-  const {symbol,name,shares,totalCost,currentPrice,priceChange,priceChangePct,loading,error} = holding;
-  const avgCost = shares>0 ? totalCost/shares : 0;
-  const mv = currentPrice!=null ? currentPrice*shares : null;
-  const ug = mv!=null ? mv-totalCost : null;
-  const isUp=priceChange>0, isDown=priceChange<0;
-  return (
-    <div className={`card ${isUp?"up":isDown?"down":""}`}>
-      <div className="card-header">
-        <div><span className="symbol">{symbol}</span><span className="name">{name}</span></div>
-        <button className="del-btn" onClick={()=>onDelete(symbol)}>✕</button>
-      </div>
-      <div className="price-row">
-        {loading ? <Spinner/> : error ? <span className="error-text">無法取得報價</span> : <>
-          <span className="current-price">{currentPrice!=null?`$${currentPrice.toFixed(2)}`:"—"}</span>
-          <span className={`change ${isUp?"pos":isDown?"neg":""}`}>
-            {priceChange!=null?`${isUp?"▲":isDown?"▼":""}${Math.abs(priceChange).toFixed(2)} (${priceChangePct>0?"+":""}${priceChangePct?.toFixed(2)}%)`:""}
-          </span>
-        </>}
-      </div>
-      <div className="stats-grid">
-        <Stat label="持有股數" value={`${fmt(shares)} 股`}/>
-        <Stat label="平均成本" value={`$${avgCost.toFixed(2)}`}/>
-        <Stat label="投入總成本" value={`$${fmt(Math.round(totalCost))}`}/>
-        <Stat label="目前市值" value={mv!=null?`$${fmt(Math.round(mv))}`:"—"}/>
-        <Stat label="未實現損益" value={ug!=null?`${ug>=0?"+":""}$${fmt(Math.round(ug))}`:"—"} highlight={ug!=null?(ug>=0?"pos":"neg"):""}/>
-        <Stat label="報酬率" value={ug!=null&&totalCost>0?`${pct(ug,totalCost)}%`:"—"} highlight={ug!=null?(ug>=0?"pos":"neg"):""}/>
+// ── Utilities ─────────────────────────────────────────────────────
+const fmt=n=>n==null?"—":Math.round(n).toLocaleString("zh-TW");
+const fmtN=n=>n==null?"—":n.toLocaleString("zh-TW",{minimumFractionDigits:2,maximumFractionDigits:2});
+const pct=(g,c)=>c===0?"0.00":((g/c)*100).toFixed(2);
+const sign=n=>n>0?"+":n<0?"":""
+
+// ── Components ────────────────────────────────────────────────────
+function Spinner(){return <div className="spin"><div/><div/><div/></div>;}
+
+function BarChart({data}){
+  if(!data.length)return null;
+  const vals=data.map(d=>d.pnl);
+  const maxAbs=Math.max(...vals.map(Math.abs),1);
+  const H=70;
+  return(
+    <div className="bar-chart">
+      <div className="bars-wrap">
+        {data.slice(-60).map((d,i)=>{
+          const v=d.pnl;
+          const h=Math.max(2,Math.abs(v)/maxAbs*H*0.9);
+          return(
+            <div key={i} className="bar-col" title={`${d.date}\n${v>=0?"+":""}${fmt(v)}`}>
+              {v>=0
+                ?<><div className="bar pos" style={{height:h}}/><div className="bar-zero"/></>
+                :<><div className="bar-zero"/><div className="bar neg" style={{height:h}}/></>
+              }
+            </div>
+          );
+        })}
       </div>
     </div>
   );
 }
 
-function AddModal({onClose,onAdd}) {
-  const [form,setForm] = useState({date:new Date().toISOString().slice(0,10),symbol:"",name:"",action:"buy",shares:"",price:"",fee:"",tax:""});
-  const set = k=>e=>setForm(f=>({...f,[k]:e.target.value}));
-  const submit = () => {
-    if (!form.symbol||!form.shares||!form.price) return alert("請填寫股票代號、股數和成交價");
-    onAdd([{...form,shares:Number(form.shares),price:Number(form.price),fee:Number(form.fee||0),tax:Number(form.tax||0)}]);
+function TrendChart({data,range}){
+  if(data.length<2)return<div style={{height:160,display:"flex",alignItems:"center",justifyContent:"center",color:"var(--muted)",fontSize:"0.8rem"}}>資料不足</div>;
+  const vals=data.map(d=>d.totalValue);
+  const min=Math.min(...vals)*0.998;
+  const max=Math.max(...vals)*1.002;
+  const W=300,H=140;
+  const points=vals.map((v,i)=>{
+    const x=(i/(vals.length-1))*W;
+    const y=H-((v-min)/(max-min||1))*H;
+    return`${x},${y}`;
+  }).join(" ");
+  const lastVal=vals[vals.length-1];
+  const firstVal=vals[0];
+  const isUp=lastVal>=firstVal;
+  const color=isUp?"#22c55e":"#ef4444";
+  const fillId=`tf${Math.random().toString(36).slice(2)}`;
+  // x labels
+  const n=data.length;
+  const labelIdxs=[0,Math.floor(n/3),Math.floor(2*n/3),n-1].filter((v,i,a)=>a.indexOf(v)===i);
+  return(
+    <div>
+      <div className="trend-svg-wrap">
+        <svg viewBox={`0 0 ${W} ${H}`} preserveAspectRatio="none">
+          <defs>
+            <linearGradient id={fillId} x1="0" y1="0" x2="0" y2="1">
+              <stop offset="0%" stopColor={color} stopOpacity="0.3"/>
+              <stop offset="100%" stopColor={color} stopOpacity="0"/>
+            </linearGradient>
+          </defs>
+          <polygon points={`0,${H} ${points} ${W},${H}`} fill={`url(#${fillId})`}/>
+          <polyline points={points} fill="none" stroke={color} strokeWidth="1.5"/>
+        </svg>
+      </div>
+      <div className="trend-x">
+        {labelIdxs.map(i=><span key={i}>{data[i]?.date?.slice(5)}</span>)}
+      </div>
+    </div>
+  );
+}
+
+function StockCard({h}){
+  const {symbol,name,shares,totalCost,currentPrice,priceChange,priceChangePct,loading,error}=h;
+  const avgCost=shares>0?totalCost/shares:0;
+  const mv=currentPrice!=null?currentPrice*shares:null;
+  const ug=mv!=null?mv-totalCost:null;
+  const isUp=priceChange>0,isDown=priceChange<0;
+  const cls=loading?"flat":isUp?"pos":isDown?"neg":"flat";
+  return(
+    <div className={`stock-card ${cls}`}>
+      <div className="stock-top">
+        <div className="stock-name-wrap">
+          <span className="stock-name">{name}</span>
+          <span className="stock-code">{symbol}</span>
+        </div>
+        <div className="stock-price-wrap">
+          {loading?<Spinner/>:error?<span style={{fontSize:"0.75rem",color:"var(--red)"}}>無報價</span>:<>
+            <div className="stock-price">{currentPrice!=null?`$${fmtN(currentPrice)}`:"—"}</div>
+            <div className={`stock-change ${isUp?"pos":isDown?"neg":""}`}>
+              {priceChange!=null?`${isUp?"▲":isDown?"▼":""}${Math.abs(priceChange).toFixed(2)} ${priceChangePct!=null?`(${priceChangePct>=0?"+":""}${priceChangePct.toFixed(2)}%)`:""}`:""}</div>
+          </>}
+        </div>
+      </div>
+      <div className="stock-stats">
+        <div className="stat-item">
+          <div className="stat-label">今日損益</div>
+          <div className={`stat-value ${isUp?"pos":isDown?"neg":""}`}>
+            {priceChange!=null&&shares>0?`${isUp?"+":""}${fmt(priceChange*shares)}`:"—"}
+          </div>
+        </div>
+        <div className="stat-item">
+          <div className="stat-label">未實現損益</div>
+          <div className={`stat-value ${ug!=null?(ug>=0?"pos":"neg"):""}`}>
+            {ug!=null?`${ug>=0?"+":""}${fmt(ug)}`:"—"}
+          </div>
+        </div>
+        <div className="stat-item">
+          <div className="stat-label">報酬率</div>
+          <div className={`stat-value ${ug!=null?(ug>=0?"pos":"neg"):""}`}>
+            {ug!=null&&totalCost>0?`${pct(ug,totalCost)}%`:"—"}
+          </div>
+        </div>
+        <div className="stat-item">
+          <div className="stat-label">持有股數</div>
+          <div className="stat-value">{fmt(shares)} 股</div>
+        </div>
+        <div className="stat-item">
+          <div className="stat-label">平均成本</div>
+          <div className="stat-value">${fmtN(avgCost)}</div>
+        </div>
+        <div className="stat-item">
+          <div className="stat-label">投入成本</div>
+          <div className="stat-value">${fmt(totalCost)}</div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function AddSheet({onClose,onAdd}){
+  const [f,setF]=useState({date:new Date().toISOString().slice(0,10),symbol:"",name:"",action:"buy",shares:"",price:"",fee:"",tax:""});
+  const s=k=>e=>setF(p=>({...p,[k]:e.target.value}));
+  const submit=()=>{
+    if(!f.symbol||!f.shares||!f.price)return alert("請填寫股票代號、股數和成交價");
+    onAdd([{...f,shares:+f.shares,price:+f.price,fee:+(f.fee||0),tax:+(f.tax||0)}]);
     onClose();
   };
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" onClick={e=>e.stopPropagation()}>
-        <h3>手動新增交易記錄</h3>
-        <div className="form-grid">
-          <label>日期<input type="date" value={form.date} onChange={set("date")}/></label>
-          <label>股票代號<input placeholder="e.g. 2330" value={form.symbol} onChange={set("symbol")}/></label>
-          <label>股票名稱<input placeholder="e.g. 台積電" value={form.name} onChange={set("name")}/></label>
-          <label>買/賣<select value={form.action} onChange={set("action")}><option value="buy">買入</option><option value="sell">賣出</option></select></label>
-          <label>股數<input type="number" placeholder="1000" value={form.shares} onChange={set("shares")}/></label>
-          <label>成交價（元）<input type="number" step="0.01" placeholder="100.00" value={form.price} onChange={set("price")}/></label>
-          <label>手續費（元）<input type="number" placeholder="0" value={form.fee} onChange={set("fee")}/></label>
-          <label>交易稅（元）<input type="number" placeholder="0" value={form.tax} onChange={set("tax")}/></label>
+  return(
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet" onClick={e=>e.stopPropagation()}>
+        <h3>手動新增交易</h3>
+        <div className="form-row">
+          <div className="form-group"><label>日期</label><input type="date" value={f.date} onChange={s("date")}/></div>
+          <div className="form-group"><label>買/賣</label><select value={f.action} onChange={s("action")}><option value="buy">買入</option><option value="sell">賣出</option></select></div>
         </div>
-        <div className="modal-actions">
-          <button className="btn-secondary" onClick={onClose}>取消</button>
-          <button className="btn-primary" onClick={submit}>新增</button>
+        <div className="form-row">
+          <div className="form-group"><label>股票代號</label><input placeholder="2330" value={f.symbol} onChange={s("symbol")}/></div>
+          <div className="form-group"><label>股票名稱</label><input placeholder="台積電" value={f.name} onChange={s("name")}/></div>
         </div>
-      </div>
-    </div>
-  );
-}
-
-function ExcelPreviewModal({result, onClose, onConfirm}) {
-  const {parsed, errors} = result;
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{maxWidth:680}} onClick={e=>e.stopPropagation()}>
-        <h3>Excel 匯入預覽</h3>
-
-        {parsed.length > 0 && <>
-          <div style={{marginBottom:8,fontSize:"0.82rem",color:"var(--green)"}}>✓ 可匯入 {parsed.length} 筆</div>
-          <div className="preview-box">
-            <table>
-              <thead><tr><th>日期</th><th>代號</th><th>名稱</th><th>買/賣</th><th>股數</th><th>成交價</th></tr></thead>
-              <tbody>
-                {parsed.map((t,i)=>(
-                  <tr key={i}>
-                    <td>{t.date}</td><td>{t.symbol}</td><td>{t.name}</td>
-                    <td><span className={t.action==="buy"?"badge-buy":"badge-sell"}>{t.action==="buy"?"買入":"賣出"}</span></td>
-                    <td>{fmt(t.shares)}</td><td>${Number(t.price).toFixed(2)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>}
-
-        {errors.length > 0 && <>
-          <div style={{marginBottom:8,fontSize:"0.82rem",color:"var(--red)"}}>⚠ {errors.length} 筆有錯誤（將略過）</div>
-          <div className="preview-box">
-            <table>
-              <thead><tr><th>行號</th><th>問題</th></tr></thead>
-              <tbody>
-                {errors.map((e,i)=>(
-                  <tr key={i} className="err-row"><td>第 {e.row} 行</td><td>{e.errors.join("、")}</td></tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </>}
-
-        {parsed.length === 0 && <div style={{color:"var(--red)",marginBottom:16}}>沒有可匯入的資料，請確認 Excel 格式是否正確。</div>}
-
-        <div className="modal-actions">
-          <button className="btn-secondary" onClick={onClose}>取消</button>
-          {parsed.length > 0 && <button className="btn-primary" onClick={()=>onConfirm(parsed)}>確認匯入 {parsed.length} 筆</button>}
+        <div className="form-row">
+          <div className="form-group"><label>股數</label><input type="number" placeholder="1000" value={f.shares} onChange={s("shares")}/></div>
+          <div className="form-group"><label>成交價（元）</label><input type="number" step="0.01" placeholder="100.00" value={f.price} onChange={s("price")}/></div>
+        </div>
+        <div className="form-row">
+          <div className="form-group"><label>手續費</label><input type="number" placeholder="0" value={f.fee} onChange={s("fee")}/></div>
+          <div className="form-group"><label>交易稅</label><input type="number" placeholder="0" value={f.tax} onChange={s("tax")}/></div>
+        </div>
+        <div className="sheet-actions">
+          <button className="btn-cancel" onClick={onClose}>取消</button>
+          <button className="btn-confirm" onClick={submit}>新增</button>
         </div>
       </div>
     </div>
   );
 }
 
-function TxnModal({transactions,onClose,onDelete}) {
-  const bySymbol = {};
-  for (const t of transactions) { if (!bySymbol[t.symbol]) bySymbol[t.symbol]=[]; bySymbol[t.symbol].push(t); }
-  return (
-    <div className="modal-overlay" onClick={onClose}>
-      <div className="modal" style={{maxWidth:700}} onClick={e=>e.stopPropagation()}>
-        <h3 style={{marginBottom:16}}>交易明細（共 {transactions.length} 筆）</h3>
-        {Object.entries(bySymbol).map(([sym,txns])=>(
-          <div key={sym} style={{marginBottom:20}}>
-            <div className="section-title">{sym} {txns[0].name}</div>
-            <table className="txn-table">
-              <thead><tr><th>日期</th><th>方向</th><th>股數</th><th>成交價</th><th>手續費</th><th>交易稅</th><th></th></tr></thead>
-              <tbody>
-                {[...txns].sort((a,b)=>a.date.localeCompare(b.date)).map((t,i)=>(
-                  <tr key={t.id||i}>
-                    <td>{t.date}</td>
-                    <td><span className={t.action==="buy"?"badge-buy":"badge-sell"}>{t.action==="buy"?"買入":"賣出"}</span></td>
-                    <td>{fmt(t.shares)}</td><td>${Number(t.price).toFixed(2)}</td>
-                    <td>${fmt(t.fee||0)}</td><td>${fmt(t.tax||0)}</td>
-                    <td><button className="del-btn" onClick={()=>onDelete(t)} style={{fontSize:"0.75rem"}}>刪</button></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+function ExcelSheet({onClose,onAdd}){
+  const [msg,setMsg]=useState("");
+  const [preview,setPreview]=useState(null);
+  const ref=useRef();
+  const handleFile=async e=>{
+    const file=e.target.files[0];if(!file)return;
+    setMsg("解析中…");setPreview(null);
+    try{const r=await parseExcel(file);setPreview(r);setMsg("");}
+    catch(err){setMsg("❌ "+err.message);}
+    e.target.value="";
+  };
+  const confirm=()=>{if(preview?.parsed?.length){onAdd(preview.parsed);onClose();}};
+  return(
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet" onClick={e=>e.stopPropagation()}>
+        <h3>上傳 Excel / CSV</h3>
+        <div className="upload-zone" onClick={()=>ref.current.click()}>
+          <input ref={ref} type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handleFile}/>
+          <div style={{fontSize:"1.5rem",marginBottom:6}}>📊</div>
+          <div style={{fontSize:"0.85rem"}}>點此選擇檔案</div>
+          <div style={{fontSize:"0.72rem",color:"var(--muted)",marginTop:4}}>支援 .xlsx / .xls / .csv</div>
+          {msg&&<div className={`upload-msg ${msg.startsWith("❌")?"err":"ok"}`}>{msg}</div>}
+        </div>
+        {preview&&<>
+          {preview.parsed.length>0&&<>
+            <div style={{fontSize:"0.78rem",color:"var(--green)",marginBottom:6}}>✓ 可匯入 {preview.parsed.length} 筆</div>
+            <div className="preview-wrap">
+              <table>
+                <thead><tr><th>日期</th><th>代號</th><th>名稱</th><th>方向</th><th>股數</th><th>成交價</th></tr></thead>
+                <tbody>{preview.parsed.map((t,i)=>(
+                  <tr key={i}><td>{t.date}</td><td>{t.symbol}</td><td>{t.name}</td>
+                    <td><span className={`txn-badge ${t.action}`}>{t.action==="buy"?"買":"賣"}</span></td>
+                    <td>{t.shares}</td><td>{t.price}</td></tr>
+                ))}</tbody>
+              </table>
+            </div>
+          </>}
+          {preview.errors.length>0&&<div style={{fontSize:"0.75rem",color:"var(--red)",marginBottom:8}}>⚠ {preview.errors.length} 筆格式錯誤將略過</div>}
+        </>}
+        <div className="sheet-actions">
+          <button className="btn-cancel" onClick={onClose}>取消</button>
+          <button className="btn-confirm" onClick={confirm} style={{opacity:preview?.parsed?.length?1:0.4}}>確認匯入 {preview?.parsed?.length||0} 筆</button>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function TxnSheet({txns,onClose,onDelete}){
+  const bySymbol={};
+  for(const t of txns){if(!bySymbol[t.symbol])bySymbol[t.symbol]=[];bySymbol[t.symbol].push(t);}
+  return(
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet" onClick={e=>e.stopPropagation()}>
+        <h3>交易明細（{txns.length} 筆）</h3>
+        {Object.entries(bySymbol).map(([sym,ts])=>(
+          <div key={sym} className="txn-symbol-group">
+            <div className="txn-symbol-header">{sym} {ts[0].name}</div>
+            {[...ts].sort((a,b)=>a.date.localeCompare(b.date)).map((t,i)=>(
+              <div key={t.id||i} className="txn-row">
+                <div className="txn-left">
+                  <span className="txn-date">{t.date}</span>
+                  <span className={`txn-badge ${t.action}`}>{t.action==="buy"?"買入":"賣出"}</span>
+                </div>
+                <div className="txn-right">
+                  <div>{fmt(t.shares)} 股 × ${fmtN(+t.price)}</div>
+                  <div style={{fontSize:"0.7rem",color:"var(--muted)"}}>手續費 ${fmt(t.fee||0)} 稅 ${fmt(t.tax||0)}</div>
+                </div>
+                <button className="del-btn" onClick={()=>onDelete(t)}>刪</button>
+              </div>
+            ))}
           </div>
         ))}
-        <div className="modal-actions"><button className="btn-secondary" onClick={onClose}>關閉</button></div>
+        <button className="btn-cancel" style={{width:"100%",marginTop:8}} onClick={onClose}>關閉</button>
+      </div>
+    </div>
+  );
+}
+
+function ConfigSheet({onClose,onSave,current}){
+  const [f,setF]=useState(current);
+  const s=k=>e=>setF(p=>({...p,[k]:e.target.value}));
+  return(
+    <div className="overlay" onClick={onClose}>
+      <div className="sheet" onClick={e=>e.stopPropagation()}>
+        <h3>⚙ 雲端同步設定</h3>
+        <div className="config-row">
+          <label>Supabase URL</label>
+          <input placeholder="https://xxxx.supabase.co" value={f.supabaseUrl||""} onChange={s("supabaseUrl")}/>
+        </div>
+        <div className="config-row">
+          <label>Supabase Anon Key</label>
+          <input type="password" placeholder="eyJh..." value={f.supabaseKey||""} onChange={s("supabaseKey")}/>
+        </div>
+        <div className="config-hint">
+          不填則資料存在本機。填入後可跨裝置同步。<br/>
+          前往 <a href="https://supabase.com" target="_blank">supabase.com</a> 免費建立專案。
+        </div>
+        <div className="sheet-actions" style={{marginTop:16}}>
+          <button className="btn-cancel" onClick={onClose}>取消</button>
+          <button className="btn-confirm" onClick={()=>{onSave(f);onClose();}}>儲存</button>
+        </div>
       </div>
     </div>
   );
 }
 
 // ── Main App ──────────────────────────────────────────────────────
-function App() {
-  const [config,setConfig] = useState(loadConfig);
-  const [configInput,setConfigInput] = useState(loadConfig);
-  const [dbClient,setDbClient] = useState(null);
-  const [dbStatus,setDbStatus] = useState("idle");
-  const [transactions,setTransactions] = useState([]);
-  const [holdings,setHoldings] = useState([]);
-  const [dbLoading,setDbLoading] = useState(false);
-  const [showManual,setShowManual] = useState(false);
-  const [showTxns,setShowTxns] = useState(false);
-  const [showConfig,setShowConfig] = useState(false);
-  const [refreshing,setRefreshing] = useState(false);
-  const [lastUpdated,setLastUpdated] = useState(null);
-  const [excelPreview,setExcelPreview] = useState(null);
-  const [excelMsg,setExcelMsg] = useState("");
-  const excelRef = useRef();
+function App(){
+  const [cfg,setCfg]=useState(loadCfg);
+  const [db,setDb]=useState(null);
+  const [dbStatus,setDbStatus]=useState("idle");
+  const [txns,setTxns]=useState([]);
+  const [holdings,setHoldings]=useState([]);
+  const [refreshing,setRefreshing]=useState(false);
+  const [lastUpdated,setLastUpdated]=useState(null);
+  const [priceMap,setPriceMap]=useState({});
+  const [loading,setLoading]=useState(false);
+  const [tab,setTab]=useState("即時損益");
+  const [trendRange,setTrendRange]=useState("1月");
+  const [showAdd,setShowAdd]=useState(false);
+  const [showExcel,setShowExcel]=useState(false);
+  const [showTxn,setShowTxn]=useState(false);
+  const [showCfg,setShowCfg]=useState(false);
+  const excelRef=useRef();
 
+  // Init DB
   useEffect(()=>{
-    if (config.supabaseUrl && config.supabaseKey) {
-      const client = createSupabase(config.supabaseUrl, config.supabaseKey);
-      setDbClient(client); setDbLoading(true);
-      dbLoad(client).then(d=>{setTransactions(d);setDbStatus("ok");}).catch(()=>setDbStatus("err")).finally(()=>setDbLoading(false));
-    } else {
-      try { setTransactions(JSON.parse(localStorage.getItem("tw_stock_txns")||"[]")); } catch {}
+    if(cfg.supabaseUrl&&cfg.supabaseKey){
+      const client=mkClient(cfg.supabaseUrl,cfg.supabaseKey);
+      setDb(client);setLoading(true);
+      dbLoad(client).then(d=>{setTxns(d);setDbStatus("ok");}).catch(()=>setDbStatus("err")).finally(()=>setLoading(false));
+    }else{
+      try{setTxns(JSON.parse(localStorage.getItem("tw_txns")||"[]"));}catch{}
     }
-  },[config.supabaseUrl, config.supabaseKey]);
+  },[cfg.supabaseUrl,cfg.supabaseKey]);
 
   useEffect(()=>{
-    if (!config.supabaseUrl) { try { localStorage.setItem("tw_stock_txns", JSON.stringify(transactions)); } catch {} }
-  },[transactions, config.supabaseUrl]);
+    if(!cfg.supabaseUrl)try{localStorage.setItem("tw_txns",JSON.stringify(txns));}catch{}
+  },[txns,cfg.supabaseUrl]);
 
+  // Recompute holdings
   useEffect(()=>{
-    const h = computeHoldings(transactions);
+    const h=computeHoldings(txns);
     setHoldings(h.map(hh=>({...hh,loading:false,currentPrice:null,priceChange:null,priceChangePct:null,error:false})));
-  },[transactions]);
+  },[txns]);
 
-  const saveConfigAndApply = () => { saveConfig(configInput); setConfig(configInput); setShowConfig(false); };
-
-  const refreshPrices = useCallback(async()=>{
-    const cur = computeHoldings(transactions);
-    if (!cur.length) return;
+  // Refresh prices
+  const refreshPrices=useCallback(async()=>{
+    const cur=computeHoldings(txns);
+    if(!cur.length)return;
     setRefreshing(true);
     setHoldings(prev=>prev.map(h=>({...h,loading:true})));
-    const results = await Promise.allSettled(cur.map(h=>fetchPrice(h.symbol)));
+    const results=await Promise.allSettled(cur.map(h=>fetchPrice(h.symbol)));
+    const newMap={};
     setHoldings(prev=>prev.map((h,i)=>{
       const r=results[i];
-      return r.status==="fulfilled"
-        ? {...h,loading:false,currentPrice:r.value.price,priceChange:r.value.change,priceChangePct:r.value.changePct,error:false}
-        : {...h,loading:false,error:true};
+      if(r.status==="fulfilled"){
+        newMap[h.symbol]=r.value.price;
+        return{...h,loading:false,currentPrice:r.value.price,priceChange:r.value.change,priceChangePct:r.value.changePct,error:false};
+      }
+      return{...h,loading:false,error:true};
     }));
-    setLastUpdated(new Date()); setRefreshing(false);
-  },[transactions]);
+    setPriceMap(newMap);
+    setLastUpdated(new Date());setRefreshing(false);
+  },[txns]);
 
-  const addTxns = async txns => {
-    if (dbClient) { await dbAdd(dbClient,txns); setTransactions(await dbLoad(dbClient)); }
-    else setTransactions(prev=>[...prev,...txns]);
+  const addTxns=async ts=>{
+    if(db){await dbAdd(db,ts);setTxns(await dbLoad(db));}
+    else setTxns(prev=>[...prev,...ts]);
   };
-
-  const deleteHolding = async sym => {
-    if (!confirm(`確定要刪除 ${sym} 的所有交易記錄？`)) return;
-    if (dbClient) { await dbDelSymbol(dbClient,sym); setTransactions(await dbLoad(dbClient)); }
-    else setTransactions(prev=>prev.filter(t=>t.symbol!==sym));
+  const delTxn=async t=>{
+    if(db&&t.id){await dbDelId(db,t.id);setTxns(await dbLoad(db));}
+    else setTxns(prev=>prev.filter(x=>!(x.symbol===t.symbol&&x.date===t.date&&x.action===t.action&&+x.shares===+t.shares&&+x.price===+t.price)));
   };
-
-  const deleteTxn = async txn => {
-    if (dbClient&&txn.id) { await dbDelId(dbClient,txn.id); setTransactions(await dbLoad(dbClient)); }
-    else setTransactions(prev=>prev.filter(t=>!(t.symbol===txn.symbol&&t.date===txn.date&&t.action===txn.action&&Number(t.shares)===Number(txn.shares)&&Number(t.price)===Number(txn.price))));
+  const delSym=async sym=>{
+    if(!confirm(`確定刪除 ${sym} 所有記錄？`))return;
+    if(db){await dbDelSym(db,sym);setTxns(await dbLoad(db));}
+    else setTxns(prev=>prev.filter(t=>t.symbol!==sym));
   };
+  const saveCfgAndApply=c=>{saveCfg(c);setCfg(c);};
 
-  const handleExcelUpload = async e => {
-    const file = e.target.files[0];
-    if (!file) return;
-    setExcelMsg("解析中…");
-    try {
-      const result = await parseExcel(file);
-      setExcelMsg("");
-      setExcelPreview(result);
-    } catch(err) {
-      setExcelMsg("❌ " + err.message);
-    }
-    e.target.value = "";
-  };
+  // Computed summary
+  const totalCost=holdings.reduce((s,h)=>s+h.totalCost,0);
+  const totalMv=holdings.reduce((s,h)=>s+(h.currentPrice!=null?h.currentPrice*h.shares:0),0);
+  const unrealized=totalMv-totalCost;
+  const todayPnl=holdings.reduce((s,h)=>s+(h.priceChange!=null?h.priceChange*h.shares:0),0);
+  const anyPrice=holdings.some(h=>h.currentPrice!=null);
 
-  const confirmExcelImport = async parsed => {
-    await addTxns(parsed);
-    setExcelPreview(null);
-    setExcelMsg(`✓ 成功匯入 ${parsed.length} 筆交易記錄`);
-  };
+  // Daily data for charts
+  const dailyData=useMemo(()=>buildDailyPnl(txns,priceMap),[txns,priceMap]);
 
-  const totalCost = holdings.reduce((s,h)=>s+h.totalCost,0);
-  const totalMarket = holdings.reduce((s,h)=>s+(h.currentPrice!=null?h.currentPrice*h.shares:0),0);
-  const totalGain = totalMarket-totalCost;
-  const anyPrice = holdings.some(h=>h.currentPrice!=null);
+  const rangeMap={"1月":30,"3月":90,"6月":180,"1年":365};
+  const trendData=useMemo(()=>{
+    const days=rangeMap[trendRange]||30;
+    return dailyData.slice(-days);
+  },[dailyData,trendRange]);
 
-  return (
+  const recentBarData=useMemo(()=>dailyData.slice(-60),[dailyData]);
+
+  return(
     <>
     <div className="app">
-      <div className="header">
-        <div className="logo">台股<span>資產追蹤</span></div>
-        <div className="header-actions">
-          <span className="db-status">
-            <span className={`status-dot ${dbStatus==="ok"?"ok":dbStatus==="err"?"err":"idle"}`}/>
-            {dbStatus==="ok"?"雲端同步":dbStatus==="err"?"連線失敗":"本機模式"}
-          </span>
-          {lastUpdated && <span className="last-updated">更新：{lastUpdated.toLocaleTimeString("zh-TW")}</span>}
-          <button className="btn-secondary" onClick={()=>setShowConfig(v=>!v)}>⚙ 設定</button>
-          <button className="btn-secondary" onClick={()=>setShowTxns(true)}>📋 明細</button>
-          <button className="btn-primary" onClick={refreshPrices} disabled={refreshing||holdings.length===0}>
-            {refreshing?"更新中…":"⟳ 更新股價"}
-          </button>
+      <div className="topbar">
+        <span className="topbar-title">台股<span style={{color:"var(--accent)"}}>資產追蹤</span></span>
+        <div className="topbar-actions">
+          <div className="status-bar" style={{padding:0}}>
+            <div className={`dot ${dbStatus==="ok"?"ok":dbStatus==="err"?"err":""}`}/>
+            <span style={{fontSize:"0.7rem"}}>{dbStatus==="ok"?"雲端":dbStatus==="err"?"離線":"本機"}</span>
+          </div>
+          {lastUpdated&&<span className="icon-btn" style={{cursor:"default",fontSize:"0.7rem"}}>{lastUpdated.toLocaleTimeString("zh-TW",{hour:"2-digit",minute:"2-digit"})}</span>}
+          <button className="icon-btn" onClick={()=>setShowCfg(true)}>⚙</button>
         </div>
       </div>
 
-      {showConfig && (
-        <div className="config-bar">
-          <h4>⚙ Supabase 雲端同步設定（跨裝置必填）</h4>
-          <div className="config-row">
-            <label>Supabase URL</label>
-            <input placeholder="https://xxxx.supabase.co" value={configInput.supabaseUrl||""} onChange={e=>setConfigInput(p=>({...p,supabaseUrl:e.target.value}))}/>
-          </div>
-          <div className="config-row">
-            <label>Supabase Anon Key</label>
-            <input type="password" placeholder="eyJh..." value={configInput.supabaseKey||""} onChange={e=>setConfigInput(p=>({...p,supabaseKey:e.target.value}))}/>
-            <button className="btn-primary" onClick={saveConfigAndApply}>儲存</button>
-          </div>
-          <div className="config-hint">不填的話資料只存在本機瀏覽器。前往 <a href="https://supabase.com" target="_blank">supabase.com</a> 免費建立專案。</div>
-        </div>
-      )}
-
-      {!config.supabaseUrl && (
-        <div className="notice">
-          <strong>本機模式</strong>：資料存在此瀏覽器。點 ⚙ 設定填入 Supabase 資訊可跨裝置同步。股價來源：TWSE 公開 API，完全免費。
-        </div>
-      )}
-
-      {holdings.length > 0 && (
-        <div className="summary">
-          <div className="sum-item"><span className="sum-label">投入總成本</span><span className="sum-value">${fmt(Math.round(totalCost))}</span></div>
-          {anyPrice && <>
-            <div className="sum-divider"/>
-            <div className="sum-item"><span className="sum-label">總市值</span><span className="sum-value">${fmt(Math.round(totalMarket))}</span></div>
-            <div className="sum-divider"/>
-            <div className="sum-item">
-              <span className="sum-label">未實現總損益</span>
-              <span className={`sum-value ${totalGain>=0?"pos":"neg"}`}>{totalGain>=0?"+":""}${fmt(Math.round(totalGain))}</span>
-            </div>
-            <div className="sum-divider"/>
-            <div className="sum-item">
-              <span className="sum-label">整體報酬率</span>
-              <span className={`sum-value ${totalGain>=0?"pos":"neg"}`}>{pct(totalGain,totalCost)}%</span>
-            </div>
-          </>}
-        </div>
-      )}
-
-      {/* Import zone */}
-      <div className="import-zone">
-        {/* Manual */}
-        <div className="import-card" onClick={()=>setShowManual(true)}>
-          <div className="import-icon">✏️</div>
-          <div className="import-title">手動新增</div>
-          <div className="import-hint">逐筆輸入交易記錄</div>
-        </div>
-        {/* Excel */}
-        <div className="import-card excel" onClick={()=>excelRef.current.click()}>
-          <input ref={excelRef} type="file" accept=".xlsx,.xls,.csv" style={{display:"none"}} onChange={handleExcelUpload}/>
-          <div className="import-icon">📊</div>
-          <div className="import-title">上傳 Excel / CSV</div>
-          <div className="import-hint">批次匯入交易記錄</div>
-          {excelMsg && <div className={`import-msg ${excelMsg.startsWith("❌")?"err":"ok"}`}>{excelMsg}</div>}
-        </div>
+      <div className="tabbar">
+        {["即時損益","資產趨勢"].map(t=>(
+          <button key={t} className={`tab ${tab===t?"active":""}`} onClick={()=>setTab(t)}>{t}</button>
+        ))}
       </div>
 
-      {/* Holdings */}
-      {dbLoading
-        ? <div className="empty"><Spinner/><p style={{marginTop:16}}>載入資料中…</p></div>
-        : holdings.length===0
-          ? <div className="empty"><div className="empty-icon">📊</div><p>尚無持股資料<br/>點上方卡片新增交易記錄</p></div>
-          : <div className="grid">{holdings.map(h=><HoldingCard key={h.symbol} holding={h} onDelete={deleteHolding}/>)}</div>
-      }
+      {tab==="即時損益"&&<>
+        {/* Hero summary */}
+        <div className="hero">
+          <div className="hero-row">
+            <div className="hero-card">
+              <div className="hero-label">今日損益</div>
+              <div className={`hero-value ${anyPrice?(todayPnl>=0?"pos":"neg"):""}`}>
+                {anyPrice?`${todayPnl>=0?"+":""}${fmt(todayPnl)}`:"—"}
+              </div>
+              {anyPrice&&totalMv>0&&<div className={`hero-sub ${todayPnl>=0?"pos":"neg"}`}>
+                {((todayPnl/totalMv)*100).toFixed(2)}%
+              </div>}
+            </div>
+            <div className="hero-card">
+              <div className="hero-label">累積損益</div>
+              <div className={`hero-value ${anyPrice?(unrealized>=0?"pos":"neg"):""}`}>
+                {anyPrice?`${unrealized>=0?"+":""}${fmt(unrealized)}`:"—"}
+              </div>
+              {anyPrice&&totalCost>0&&<div className={`hero-sub ${unrealized>=0?"pos":"neg"}`}>
+                {pct(unrealized,totalCost)}%
+              </div>}
+            </div>
+          </div>
+          <div className="hero-row">
+            <div className="hero-card">
+              <div className="hero-label">股票市值</div>
+              <div className="hero-value">{anyPrice?`${fmt(totalMv)}`:"—"}</div>
+              <div className="hero-sub muted">成本 {fmt(totalCost)}</div>
+            </div>
+            <div className="hero-card">
+              <div className="hero-label">投入成本</div>
+              <div className="hero-value">{fmt(totalCost)}</div>
+              <div className="hero-sub muted">{holdings.length} 支股票</div>
+            </div>
+          </div>
+        </div>
+
+        {/* Bar chart */}
+        {recentBarData.length>0&&(
+          <div className="chart-section">
+            <div className="chart-title">
+              <span>■</span><span style={{color:"var(--green)"}}>漲</span>
+              <span>■</span><span style={{color:"var(--red)"}}>跌</span>
+              <span style={{marginLeft:4}}>每日損益</span>
+            </div>
+            <BarChart data={recentBarData}/>
+          </div>
+        )}
+
+        {/* Stock list */}
+        <div className="list-section">
+          <div className="list-header">
+            <span className="list-title">持股明細</span>
+            <button className="refresh-btn" onClick={refreshPrices} disabled={refreshing||holdings.length===0}>
+              {refreshing?<Spinner/>:"⟳ 更新股價"}
+            </button>
+          </div>
+          {loading?<div className="empty"><Spinner/></div>
+          :holdings.length===0?<div className="empty"><div className="empty-icon">📊</div><p style={{fontSize:"0.88rem"}}>尚無持股<br/>點下方按鈕新增交易</p></div>
+          :holdings.map(h=><StockCard key={h.symbol} h={h}/>)
+          }
+        </div>
+      </>}
+
+      {tab==="資產趨勢"&&(
+        <div className="trend-section">
+          <div className="trend-card">
+            <div className="trend-title">證券資產趨勢圖</div>
+            <div className="trend-tabs">
+              {["1月","3月","6月","1年"].map(r=>(
+                <button key={r} className={`trend-tab ${trendRange===r?"active":""}`} onClick={()=>setTrendRange(r)}>{r}</button>
+              ))}
+            </div>
+            <TrendChart data={trendData} range={trendRange}/>
+            {trendData.length>0&&(
+              <div style={{display:"flex",justifyContent:"space-between",marginTop:12,padding:"0 2px"}}>
+                <div>
+                  <div style={{fontSize:"0.7rem",color:"var(--muted)"}}>期間起始</div>
+                  <div style={{fontFamily:"DM Mono",fontSize:"0.85rem"}}>{fmt(trendData[0]?.totalValue)}</div>
+                </div>
+                <div style={{textAlign:"right"}}>
+                  <div style={{fontSize:"0.7rem",color:"var(--muted)"}}>目前市值</div>
+                  <div style={{fontFamily:"DM Mono",fontSize:"0.85rem"}}>{fmt(trendData[trendData.length-1]?.totalValue)}</div>
+                </div>
+              </div>
+            )}
+          </div>
+          <div style={{padding:"12px 0 0"}}>
+            <div className="list-header">
+              <span className="list-title">持股明細</span>
+              <button className="refresh-btn" onClick={refreshPrices} disabled={refreshing||holdings.length===0}>
+                {refreshing?<Spinner/>:"⟳ 更新"}
+              </button>
+            </div>
+            {holdings.map(h=><StockCard key={h.symbol} h={h}/>)}
+          </div>
+        </div>
+      )}
+
+      <div style={{height:80}}/>
     </div>
 
-    {showManual && <AddModal onClose={()=>setShowManual(false)} onAdd={addTxns}/>}
-    {showTxns && <TxnModal transactions={transactions} onClose={()=>setShowTxns(false)} onDelete={deleteTxn}/>}
-    {excelPreview && <ExcelPreviewModal result={excelPreview} onClose={()=>setExcelPreview(null)} onConfirm={confirmExcelImport}/>}
+    {/* Bottom action bar */}
+    <div className="action-bar">
+      <button className="action-btn" onClick={()=>setShowTxn(true)}>📋 明細</button>
+      <button className="action-btn" onClick={()=>setShowExcel(true)}>📊 Excel</button>
+      <button className="action-btn primary" onClick={()=>setShowAdd(true)}>＋ 新增交易</button>
+    </div>
+
+    {showAdd&&<AddSheet onClose={()=>setShowAdd(false)} onAdd={addTxns}/>}
+    {showExcel&&<ExcelSheet onClose={()=>setShowExcel(false)} onAdd={addTxns}/>}
+    {showTxn&&<TxnSheet txns={txns} onClose={()=>setShowTxn(false)} onDelete={delTxn}/>}
+    {showCfg&&<ConfigSheet current={cfg} onClose={()=>setShowCfg(false)} onSave={saveCfgAndApply}/>}
     </>
   );
 }
@@ -616,5 +813,3 @@ ReactDOM.createRoot(document.getElementById("root")).render(<App/>);
 </script>
 </body>
 </html>
-
-
