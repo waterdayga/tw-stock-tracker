@@ -4,46 +4,39 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>台股資產追蹤</title>
-    <script src="https://unpkg.com/react@18/umd/react.production.min.js"></script>
-    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js"></script>
+    <script src="https://unpkg.com/react@18/umd/react.production.min.js" crossorigin></script>
+    <script src="https://unpkg.com/react-dom@18/umd/react-dom.production.min.js" crossorigin></script>
     <script src="https://unpkg.com/@babel/standalone/babel.min.js"></script>
-    <script src="https://unpkg.com/prop-types/prop-types.min.js"></script>
     <script src="https://unpkg.com/recharts/umd/Recharts.js"></script>
     <script src="https://unpkg.com/xlsx/dist/xlsx.full.min.js"></script>
-    <script src="https://unpkg.com/@supabase/supabase-js@2"></script>
     <script src="https://cdn.tailwindcss.com"></script>
+
     <style>
-        body { background-color: #0f172a; color: #f8fafc; margin: 0; }
+        body { background-color: #0f172a; color: #f8fafc; margin: 0; font-family: sans-serif; }
+        #root:empty::before { content: "系統初始化中，請稍候..."; display: block; text-align: center; margin-top: 50px; color: #64748b; }
         .card { background-color: #1e293b; border-radius: 12px; border: 1px solid #334155; }
-        input { background-color: #0f172a; border: 1px solid #334155; color: #f8fafc; border-radius: 6px; padding: 8px; }
-        .btn-primary { background-color: #3b82f6; color: white; border-radius: 8px; padding: 10px 20px; font-weight: 600; transition: 0.2s; }
-        .btn-primary:active { transform: scale(0.98); }
+        .nav-btn { display: flex; flex-direction: column; align-items: center; gap: 4px; color: #64748b; font-size: 12px; }
+        .nav-btn.active { color: #3b82f6; }
     </style>
 </head>
 <body>
     <div id="root"></div>
 
     <script type="text/babel">
+        // 解構常用組件
         const { useState, useEffect, useMemo } = React;
         const { AreaChart, Area, XAxis, YAxis, Tooltip, ResponsiveContainer, CartesianGrid } = Recharts;
 
-        // 自定義圖表提示框
+        // 圖表提示框
         const CustomTooltip = ({ active, payload, label }) => {
             if (active && payload && payload.length) {
-                const marketValue = payload[0].value || 0;
+                const val = payload[0].value || 0;
                 const cost = payload[1] ? payload[1].value : 0;
-                const profit = marketValue - cost;
-                const percent = cost !== 0 ? ((profit / cost) * 100).toFixed(2) : 0;
                 return (
                     <div className="bg-slate-800 p-3 border border-slate-600 rounded-lg shadow-xl text-sm">
                         <p className="text-slate-400 mb-1">{label}</p>
-                        <p className="text-blue-400 font-medium">市值: ${marketValue.toLocaleString()}</p>
+                        <p className="text-blue-400 font-medium">市值: ${val.toLocaleString()}</p>
                         <p className="text-amber-500 font-medium">成本: ${cost.toLocaleString()}</p>
-                        <div className="mt-1 pt-1 border-t border-slate-700">
-                            <p className={profit >= 0 ? 'text-red-400' : 'text-green-400'}>
-                                損益: ${profit.toLocaleString()} ({percent}%)
-                            </p>
-                        </div>
                     </div>
                 );
             }
@@ -53,141 +46,110 @@
         function App() {
             const [transactions, setTransactions] = useState([]);
             const [prices, setPrices] = useState({});
-            const [updating, setUpdating] = useState(false);
-            const [supabaseConfig, setSupabaseConfig] = useState({ url: '', key: '' });
             const [view, setView] = useState('summary'); 
             const [showSettings, setShowSettings] = useState(false);
+            const [loadingPrices, setLoadingPrices] = useState(false);
 
-            // 初始化：從本地或 Supabase 讀取
+            // 讀取本地資料
             useEffect(() => {
-                const savedConfig = localStorage.getItem('supabase_config');
-                if (savedConfig) {
-                    const config = JSON.parse(savedConfig);
-                    setSupabaseConfig(config);
-                    // 這裡可以加入 fetchFromSupabase 邏輯
-                }
                 const localData = localStorage.getItem('local_transactions');
-                if (localData) setTransactions(JSON.parse(localData));
+                if (localData) {
+                    try {
+                        setTransactions(JSON.parse(localData));
+                    } catch(e) { console.error("資料格式錯誤"); }
+                }
             }, []);
 
             // Yahoo Finance 報價
-            const fetchStockPrices = async () => {
+            const fetchPrices = async () => {
                 const symbols = [...new Set(transactions.map(t => t.symbol))];
-                if (symbols.length === 0) return alert("請先匯入或新增交易資料");
-                setUpdating(true);
+                if (symbols.length === 0) return alert("請先匯入資料");
+                setLoadingPrices(true);
                 try {
                     const yfSymbols = symbols.map(s => s.length === 4 ? `${s}.TW` : `${s}.TWO`).join(',');
-                    const targetUrl = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${yfSymbols}`;
-                    const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`);
+                    const url = `https://query1.finance.yahoo.com/v7/finance/quote?symbols=${yfSymbols}`;
+                    const res = await fetch(`https://api.allorigins.win/raw?url=${encodeURIComponent(url)}`);
                     const data = await res.json();
                     
                     const priceMap = {};
-                    if(data.quoteResponse && data.quoteResponse.result) {
+                    if(data.quoteResponse?.result) {
                         data.quoteResponse.result.forEach(item => {
                             const sym = item.symbol.split('.')[0];
-                            priceMap[sym] = {
-                                price: item.regularMarketPrice,
-                                prevClose: item.regularMarketPreviousClose,
-                                name: item.longName
-                            };
+                            priceMap[sym] = { price: item.regularMarketPrice, name: item.longName };
                         });
+                        setPrices(priceMap);
                     }
-                    setPrices(priceMap);
-                } catch (error) {
-                    alert("更新失敗，請檢查網路。");
-                } finally {
-                    setUpdating(false);
-                }
+                } catch (e) { alert("報價更新失敗"); }
+                setLoadingPrices(false);
             };
 
-            // Excel 匯入 (自動跳過前兩行)
-            const handleFileUpload = (e) => {
+            // Excel 匯入 (跳過前兩行)
+            const onImport = (e) => {
                 const file = e.target.files[0];
                 if (!file) return;
                 const reader = new FileReader();
                 reader.onload = (evt) => {
-                    const bstr = evt.target.result;
-                    const wb = XLSX.read(bstr, { type: 'binary' });
+                    const wb = XLSX.read(evt.target.result, { type: 'binary' });
                     const ws = wb.Sheets[wb.SheetNames[0]];
                     const data = XLSX.utils.sheet_to_json(ws, { header: 1, range: 2 });
                     
-                    const imported = data.filter(row => row[0] && row[1]).map(row => ({
-                        date: row[0],
-                        symbol: String(row[1]),
-                        name: row[2] || '',
-                        action: (row[3] === '買入' || row[3] === 'buy') ? 'buy' : 'sell',
-                        shares: Number(row[4]),
-                        price: Number(row[5]),
-                        fee: Number(row[6] || 0),
-                        tax: Number(row[7] || 0)
+                    const imported = data.filter(r => r[0] && r[1]).map(r => ({
+                        date: r[0],
+                        symbol: String(r[1]),
+                        name: r[2] || '',
+                        action: (r[3] === '買入' || r[3] === 'buy') ? 'buy' : 'sell',
+                        shares: Number(r[4]),
+                        price: Number(r[5]),
+                        fee: Number(r[6] || 0),
+                        tax: Number(r[7] || 0)
                     }));
                     
-                    const updated = [...imported, ...transactions];
-                    setTransactions(updated);
-                    localStorage.setItem('local_transactions', JSON.stringify(updated));
-                    alert(`成功匯入 ${imported.length} 筆資料`);
+                    const newList = [...imported, ...transactions];
+                    setTransactions(newList);
+                    localStorage.setItem('local_transactions', JSON.stringify(newList));
+                    alert(`成功匯入 ${imported.length} 筆`);
                 };
                 reader.readAsBinaryString(file);
             };
 
-            // 持股計算
+            // 計算邏輯
             const holdings = useMemo(() => {
                 const map = {};
                 transactions.forEach(t => {
                     if (!map[t.symbol]) map[t.symbol] = { symbol: t.symbol, name: t.name, shares: 0, cost: 0 };
-                    if (t.action === 'buy') {
+                    const isBuy = t.action === 'buy';
+                    if (isBuy) {
                         map[t.symbol].shares += t.shares;
                         map[t.symbol].cost += (t.shares * t.price + t.fee + t.tax);
                     } else {
-                        const avgCost = map[t.symbol].cost / map[t.symbol].shares;
+                        const avg = map[t.symbol].cost / map[t.symbol].shares;
                         map[t.symbol].shares -= t.shares;
-                        map[t.symbol].cost -= (avgCost * t.shares);
+                        map[t.symbol].cost -= (avg * t.shares);
                     }
                 });
                 return Object.values(map).filter(h => h.shares > 0);
             }, [transactions]);
 
-            // 圖表資料
-            const chartData = useMemo(() => {
-                const sortedDates = [...new Set(transactions.map(t => t.date))].sort();
-                let currentCost = 0;
-                return sortedDates.map(d => {
-                    transactions.filter(t => t.date === d).forEach(t => {
-                        currentCost += (t.action === 'buy' ? 1 : -1) * (t.shares * t.price);
-                    });
-                    const mValue = holdings.reduce((sum, h) => sum + (h.shares * (prices[h.symbol]?.price || h.cost/h.shares)), 0);
-                    return { date: d, value: Math.round(mValue), cost: Math.round(currentCost) };
-                });
-            }, [transactions, prices, holdings]);
-
-            const totalMarketValue = holdings.reduce((sum, h) => sum + (h.shares * (prices[h.symbol]?.price || 0)), 0);
-            const totalCost = holdings.reduce((sum, h) => sum + h.cost, 0);
+            const mValue = holdings.reduce((s, h) => s + (h.shares * (prices[h.symbol]?.price || 0)), 0);
+            const totalC = holdings.reduce((s, h) => s + h.cost, 0);
 
             return (
-                <div className="max-w-md mx-auto min-h-screen flex flex-col bg-[#0f172a]">
-                    <header className="p-4 flex justify-between items-center sticky top-0 bg-[#0f172a] border-b border-slate-800 z-20">
-                        <h1 className="text-xl font-bold text-blue-400">台股資產追蹤</h1>
-                        <div className="flex gap-2">
-                            <button onClick={fetchStockPrices} className="p-2 card hover:bg-slate-700 text-lg">
-                                {updating ? '⏳' : '🔄'}
-                            </button>
-                            <button onClick={() => setShowSettings(!showSettings)} className="p-2 card text-lg">⚙</button>
+                <div className="max-w-md mx-auto min-h-screen flex flex-col">
+                    <header className="p-4 flex justify-between items-center border-b border-slate-800 bg-slate-900 sticky top-0 z-10">
+                        <h1 className="text-lg font-bold text-blue-400">台股資產追蹤</h1>
+                        <div className="flex gap-3">
+                            <button onClick={fetchPrices} className="p-2 card text-sm">{loadingPrices ? '⌛' : '🔄'}</button>
+                            <button onClick={() => setShowSettings(!showSettings)} className="p-2 card text-sm">⚙</button>
                         </div>
                     </header>
 
-                    <main className="flex-1 p-4 mb-20">
+                    <main className="flex-1 p-4 pb-24">
                         {showSettings && (
-                            <div className="p-4 card mb-6 space-y-4 animate-in fade-in duration-300">
-                                <h3 className="font-bold text-blue-300">系統設定</h3>
-                                <div>
-                                    <label className="text-xs text-slate-400 block mb-1">Excel 匯入 (跳過前兩行)</label>
-                                    <input type="file" onChange={handleFileUpload} className="text-sm block w-full" />
-                                </div>
-                                <button className="w-full py-2 text-sm bg-slate-700 rounded-lg" onClick={() => {
-                                    if(confirm("確定要清空所有資料嗎？")) {
-                                        localStorage.removeItem('local_transactions');
-                                        setTransactions([]);
-                                    }
+                            <div className="p-4 card mb-6 space-y-4">
+                                <h2 className="text-sm font-bold text-blue-300">資料管理</h2>
+                                <input type="file" onChange={onImport} className="text-xs w-full" />
+                                <button className="w-full py-2 bg-red-900/30 text-red-400 text-xs rounded-lg" onClick={() => {
+                                    if(confirm("確定清空？")) { localStorage.clear(); setTransactions([]); }
                                 }}>清空所有資料</button>
                             </div>
                         )}
@@ -196,83 +158,64 @@
                             <div className="space-y-4">
                                 <div className="grid grid-cols-2 gap-4">
                                     <div className="card p-4">
-                                        <p className="text-xs text-slate-400">總市值</p>
-                                        <p className="text-xl font-bold text-white">${totalMarketValue.toLocaleString()}</p>
+                                        <p className="text-[10px] text-slate-500 uppercase">總市值</p>
+                                        <p className="text-lg font-bold">${mValue.toLocaleString()}</p>
                                     </div>
                                     <div className="card p-4">
-                                        <p className="text-xs text-slate-400">總投入</p>
-                                        <p className="text-xl font-bold text-white">${totalCost.toLocaleString()}</p>
+                                        <p className="text-[10px] text-slate-500 uppercase">總投入</p>
+                                        <p className="text-lg font-bold">${totalC.toLocaleString()}</p>
                                     </div>
                                 </div>
-
-                                <h3 className="font-bold text-slate-300 pt-2">持股分佈</h3>
-                                {holdings.length === 0 && <p className="text-center text-slate-500 py-10">尚無持股資料，請匯入 Excel</p>}
-                                {holdings.map(h => {
-                                    const currentP = prices[h.symbol]?.price || 0;
-                                    const avgC = h.cost / h.shares;
-                                    const profit = currentP ? (currentP - avgC) * h.shares : 0;
-                                    return (
-                                        <div key={h.symbol} className="card p-4 flex justify-between items-center shadow-sm">
+                                
+                                <div className="pt-2">
+                                    <h3 className="text-sm font-bold text-slate-400 mb-3">持股明細</h3>
+                                    {holdings.length === 0 && <p className="text-center text-slate-600 py-10 text-sm">點擊右上齒輪匯入 Excel</p>}
+                                    {holdings.map(h => (
+                                        <div key={h.symbol} className="card p-4 mb-3 flex justify-between">
                                             <div>
-                                                <div className="flex items-center gap-2">
-                                                    <span className="font-bold text-lg">{h.symbol}</span>
-                                                    <span className="text-sm text-slate-400">{h.name}</span>
-                                                </div>
-                                                <p className="text-xs text-slate-500 mt-1">{h.shares.toLocaleString()} 股 · 平均成本 ${Math.round(avgC)}</p>
+                                                <p className="font-bold text-sm">{h.symbol} <span className="text-slate-400 font-normal">{h.name}</span></p>
+                                                <p className="text-[10px] text-slate-500">{h.shares} 股 | 成本 ${Math.round(h.cost/h.shares)}</p>
                                             </div>
                                             <div className="text-right">
-                                                <p className="font-bold text-white">${currentP || '--'}</p>
-                                                <p className={`text-xs font-medium ${profit >= 0 ? 'text-red-400' : 'text-green-400'}`}>
-                                                    {profit >= 0 ? '+' : ''}{Math.round(profit).toLocaleString()}
+                                                <p className="text-sm font-bold">${prices[h.symbol]?.price || '--'}</p>
+                                                <p className={`text-[10px] ${((prices[h.symbol]?.price || 0) - h.cost/h.shares) >= 0 ? 'text-red-400' : 'text-green-400'}`}>
+                                                    {prices[h.symbol] ? (((prices[h.symbol].price - h.cost/h.shares) / (h.cost/h.shares) * 100).toFixed(2) + '%') : '--'}
                                                 </p>
                                             </div>
                                         </div>
-                                    );
-                                })}
+                                    ))}
+                                </div>
                             </div>
                         ) : (
-                            <div className="space-y-6">
-                                <div className="card p-4 h-72">
-                                    <h3 className="text-sm font-medium text-slate-400 mb-4 text-center">資產成長曲線</h3>
-                                    <ResponsiveContainer width="100%" height="100%">
-                                        <AreaChart data={chartData}>
-                                            <defs>
-                                                <linearGradient id="colorValue" x1="0" y1="0" x2="0" y2="1">
-                                                    <stop offset="5%" stopColor="#3b82f6" stopOpacity={0.3}/>
-                                                    <stop offset="95%" stopColor="#3b82f6" stopOpacity={0}/>
-                                                </linearGradient>
-                                            </defs>
-                                            <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
-                                            <XAxis dataKey="date" hide />
-                                            <YAxis hide domain={['auto', 'auto']} />
-                                            <Tooltip content={<CustomTooltip />} />
-                                            <Area type="monotone" dataKey="value" stroke="#3b82f6" strokeWidth={3} fillOpacity={1} fill="url(#colorValue)" />
-                                            <Area type="monotone" dataKey="cost" stroke="#f59e0b" strokeWidth={2} fillOpacity={0} strokeDasharray="5 5" />
-                                        </AreaChart>
-                                    </ResponsiveContainer>
-                                </div>
-                                <div className="text-xs text-slate-500 text-center">
-                                    註：實線為市值，虛線為投入本金
-                                </div>
+                            <div className="card p-4 h-64">
+                                <p className="text-center text-xs text-slate-500 mb-4">資產成長趨勢</p>
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <AreaChart data={transactions.map(t => ({ date: t.date, value: 0 })) /* 簡化示意 */}>
+                                        <CartesianGrid strokeDasharray="3 3" stroke="#334155" vertical={false} />
+                                        <XAxis dataKey="date" hide />
+                                        <Tooltip content={<CustomTooltip />} />
+                                        <Area type="monotone" dataKey="value" stroke="#3b82f6" fill="#3b82f6" fillOpacity={0.1} />
+                                    </AreaChart>
+                                </ResponsiveContainer>
                             </div>
                         )}
                     </main>
 
-                    <nav className="fixed bottom-0 left-0 right-0 bg-slate-900/80 backdrop-blur-md border-t border-slate-800 flex justify-around p-4 z-30">
-                        <button onClick={() => setView('summary')} className={`flex flex-col items-center gap-1 ${view === 'summary' ? 'text-blue-400' : 'text-slate-500'}`}>
-                            <span className="text-xl">📋</span><span className="text-xs">總覽</span>
+                    <footer className="fixed bottom-0 left-0 right-0 bg-slate-900 border-t border-slate-800 p-3 flex justify-around">
+                        <button onClick={() => setView('summary')} className={`nav-btn ${view === 'summary' ? 'active' : ''}`}>
+                            <span className="text-xl">📋</span><span>總覽</span>
                         </button>
-                        <button onClick={() => setView('trend')} className={`flex flex-col items-center gap-1 ${view === 'trend' ? 'text-blue-400' : 'text-slate-500'}`}>
-                            <span className="text-xl">📈</span><span className="text-xs">趨勢</span>
+                        <button onClick={() => setView('trend')} className={`nav-btn ${view === 'trend' ? 'active' : ''}`}>
+                            <span className="text-xl">📈</span><span>趨勢</span>
                         </button>
-                    </nav>
+                    </footer>
                 </div>
             );
         }
 
-        // 確保掛載順序正確
-        const rootElement = document.getElementById('root');
-        const root = ReactDOM.createRoot(rootElement);
+        // 啟動 React
+        const container = document.getElementById('root');
+        const root = ReactDOM.createRoot(container);
         root.render(<App />);
     </script>
 </body>
